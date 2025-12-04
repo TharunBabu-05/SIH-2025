@@ -1,0 +1,78 @@
+:root {
+  --primary-color: #667eea;
+  --secondary-color: #764ba2;
+  --accent-color: #4facfe;
+  --gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --bg-color: #0a0e27;
+  --bg-secondary: #151932;
+  --text-color: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --card-bg: #1a1f3a;
+  --success-color: #10b981;
+  --warning-color: #f59e0b;
+  --danger-color: #ef4444;
+  --info-color: #3b82f6;
+  --border-color: rgba(102, 126, 234, 0.3);
+  --primary-rgb: 102, 126, 234;
+  --secondary-rgb: 118, 75, 162;
+}
+
+.dark-mode {
+  --bg-color: #0a0e27;
+  --text-color: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --card-bg: #1a1f3a;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.App {
+  min-height: 100vh;
+  height: 100vh;
+  background: var(--bg-color);
+  overflow: hidden;
+  position: relative;
+}
+
+.App::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 50%, rgba(102, 126, 234, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(118, 75, 162, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+  animation: float 20s ease-in-out infinite;
+}
+
+body {
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--text-color);
+  background: var(--bg-color);
+}
+
+/* Fullscreen styles */
+:fullscreen {
+  background: var(--bg-color);
+}
+
+:-webkit-full-screen {
+  background: var(--bg-color);
+}
+
+:-moz-full-screen {
+  background: var(--bg-color);
+}
