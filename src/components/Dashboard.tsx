@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Activity, Zap, AlertTriangle, CheckCircle, Radio, Maximize, Minimize, BarChart3, Clock, TrendingUp, Power, Download } from 'lucide-react';
+import { Activity, Zap, AlertTriangle, CheckCircle, Radio, Maximize, Minimize, BarChart3, Clock, TrendingUp, Power, Download, Database } from 'lucide-react';
 import VoltageGauge from './VoltageGauge';
 import CurrentGauge from './CurrentGauge';
 import LineChart from './LineChart';
@@ -9,6 +9,7 @@ import PowerAnalysis from './PowerAnalysis';
 import ThemeSelector from './ThemeSelector';
 import ParticleBackground from './ParticleBackground';
 import { ESP32Service } from '../services/esp32Service';
+import { firebaseService } from '../services/firebaseService';
 import '../styles/Dashboard.css';
 import '../styles/3DEffects.css';
 
@@ -34,6 +35,12 @@ const Dashboard = () => {
   const [phaseDataR, setPhaseDataR] = useState<PhaseData>({ voltage: 0, current: 0 });
   const [phaseDataY, setPhaseDataY] = useState<PhaseData>({ voltage: 0, current: 0 });
   const [phaseDataB, setPhaseDataB] = useState<PhaseData>({ voltage: 0, current: 0 });
+  
+  // ESP32 IP Configuration
+  const [esp32IP, setEsp32IP] = useState<string>('10.117.120.133');
+  const [inputIP, setInputIP] = useState<string>('10.117.120.133');
+  const [esp32Service, setEsp32Service] = useState<ESP32Service | null>(null);
+  const [showIPInput, setShowIPInput] = useState<boolean>(false);
 
   const [sensorData, setSensorData] = useState<SensorData>({
     voltage: 0,
@@ -51,6 +58,8 @@ const Dashboard = () => {
   const [peakVoltage, setPeakVoltage] = useState(0);
   const [peakCurrent, setPeakCurrent] = useState(0);
   const [uptime, setUptime] = useState(0);
+  const [firebaseConnected, setFirebaseConnected] = useState(false);
+  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
 
   // Get current phase data based on selection
   const getCurrentPhaseData = (): PhaseData => {
@@ -62,12 +71,15 @@ const Dashboard = () => {
     }
   };
 
-  // ESP32 WebSocket connection
-  useEffect(() => {
-    // Replace with your ESP32's IP address
-    const ESP32_IP = '10.117.120.133'; //hange this to your ESP32's IP
-    const esp32Service = new ESP32Service(
-      `ws://${ESP32_IP}:81`,
+  // Function to connect to ESP32 with given IP
+  const connectToESP32 = (ip: string) => {
+    // Disconnect existing service if any
+    if (esp32Service) {
+      esp32Service.disconnect();
+    }
+
+    const service = new ESP32Service(
+      `ws://${ip}:81`,
       (data) => {
         // Handle incoming data from ESP32 - now with 3 phases
         setPhaseDataR({ voltage: data.voltage_R || 0, current: data.current_R || 0 });
@@ -91,15 +103,25 @@ const Dashboard = () => {
     );
 
     // Connect to ESP32
-    esp32Service.connect();
+    service.connect();
+    setEsp32Service(service);
+    setEsp32IP(ip);
 
     // Expose handleSensorData for testing (can be removed in production)
     (window as any).sendTestData = (voltage: number, current: number) => {
       handleSensorData({ voltage, current });
     };
+  };
+
+  // ESP32 WebSocket connection
+  useEffect(() => {
+    // Auto-connect on mount with default IP
+    connectToESP32(esp32IP);
 
     return () => {
-      esp32Service.disconnect();
+      if (esp32Service) {
+        esp32Service.disconnect();
+      }
     };
   }, []);
 
@@ -111,6 +133,39 @@ const Dashboard = () => {
 
     return () => clearInterval(uptimeInterval);
   }, []);
+
+  // Update Firebase Realtime Database with live data every 5 seconds
+  useEffect(() => {
+    const updateInterval = setInterval(async () => {
+      if (isConnected) {
+        try {
+          await firebaseService.updateLiveData({
+            R: {
+              voltage: phaseDataR.voltage,
+              current: phaseDataR.current,
+              power: phaseDataR.voltage * phaseDataR.current
+            },
+            Y: {
+              voltage: phaseDataY.voltage,
+              current: phaseDataY.current,
+              power: phaseDataY.voltage * phaseDataY.current
+            },
+            B: {
+              voltage: phaseDataB.voltage,
+              current: phaseDataB.current,
+              power: phaseDataB.voltage * phaseDataB.current
+            }
+          });
+          setFirebaseConnected(true);
+        } catch (error) {
+          console.error('Firebase live data update error:', error);
+          setFirebaseConnected(false);
+        }
+      }
+    }, 5000); // Update every 5 seconds
+
+    return () => clearInterval(updateInterval);
+  }, [isConnected, phaseDataR, phaseDataY, phaseDataB]);
 
   // Function to handle incoming sensor data from ESP32
   const handleSensorData = (data: { voltage: number; current: number }) => {
@@ -175,6 +230,49 @@ const Dashboard = () => {
 
     // Calculate energy consumption (simplified)
     setTotalEnergy(prev => prev + (power / 3600)); // Wh
+
+    // Save to Firebase (every reading)
+    saveToFirebase(selectedPhase, data.voltage, data.current, power, status);
+
+    // Save alerts to Firebase
+    if (newAlerts.length > 0) {
+      newAlerts.forEach(alertMsg => {
+        saveAlertToFirebase(selectedPhase, alertMsg, status);
+      });
+    }
+  };
+
+  // Save sensor reading to Firebase
+  const saveToFirebase = async (phase: Phase, voltage: number, current: number, power: number, status: 'normal' | 'warning' | 'critical') => {
+    try {
+      await firebaseService.saveSensorReading({
+        phase,
+        voltage,
+        current,
+        power,
+        status,
+        timestamp: new Date()
+      });
+      setFirebaseConnected(true);
+      setLastSaveTime(new Date());
+    } catch (error) {
+      console.error('Firebase save error:', error);
+      setFirebaseConnected(false);
+    }
+  };
+
+  // Save alert to Firebase
+  const saveAlertToFirebase = async (phase: Phase, message: string, type: 'warning' | 'critical') => {
+    try {
+      await firebaseService.saveAlert({
+        phase,
+        message,
+        type,
+        timestamp: new Date()
+      });
+    } catch (error) {
+      console.error('Firebase alert save error:', error);
+    }
   };
 
   const getStatusColor = () => {
@@ -221,6 +319,19 @@ const Dashboard = () => {
     URL.revokeObjectURL(url);
   };
 
+  const handleIPSubmit = () => {
+    if (inputIP.trim()) {
+      connectToESP32(inputIP.trim());
+      setShowIPInput(false);
+    }
+  };
+
+  const handleIPKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleIPSubmit();
+    }
+  };
+
   return (
     <div className="dashboard">
       <ParticleBackground />
@@ -235,14 +346,37 @@ const Dashboard = () => {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <div className="connection-status">
+            <div className="connection-status" onClick={() => setShowIPInput(!showIPInput)} style={{ cursor: 'pointer' }}>
               <Radio 
                 size={20} 
                 color={isConnected ? '#00ff00' : '#ff0000'} 
                 className={isConnected ? 'pulse' : ''}
               />
-              <span>{isConnected ? 'ESP32 Connected' : 'Disconnected'}</span>
+              <span>{isConnected ? `ESP32 Connected (${esp32IP})` : 'Disconnected - Click to configure'}</span>
             </div>
+            <div className="connection-status" title="Firebase Database">
+              <Database 
+                size={20} 
+                color={firebaseConnected ? '#00ff00' : '#ffaa00'} 
+                className={firebaseConnected ? 'pulse' : ''}
+              />
+              <span>{firebaseConnected ? 'Firebase Synced' : 'Firebase Standby'}</span>
+            </div>
+            {showIPInput && (
+              <div className="ip-input-container">
+                <input
+                  type="text"
+                  className="ip-input"
+                  placeholder="Enter ESP32 IP (e.g., 192.168.1.100)"
+                  value={inputIP}
+                  onChange={(e) => setInputIP(e.target.value)}
+                  onKeyPress={handleIPKeyPress}
+                />
+                <button className="ip-connect-btn" onClick={handleIPSubmit}>
+                  Connect
+                </button>
+              </div>
+            )}
             <ThemeSelector />
             <button className="header-btn" onClick={exportData} title="Export Data">
               <Download size={20} />

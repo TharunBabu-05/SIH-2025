@@ -1,0 +1,332 @@
+.meter-box {
+  background: rgba(20, 25, 35, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 30px;
+  border: 2px solid rgba(100, 150, 255, 0.4);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 60px rgba(100, 150, 255, 0.1);
+}
+
+.meter-box-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid rgba(100, 150, 255, 0.4);
+}
+
+.meter-box-header h2 {
+  font-size: 1.8rem;
+  margin: 0;
+  color: #6495ff;
+  font-weight: 700;
+  text-shadow: 0 0 20px rgba(100, 149, 255, 0.5);
+}
+
+.last-update {
+  font-size: 0.9rem;
+  color: #aaa;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Phase Grid */
+.phase-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 25px;
+  margin-bottom: 25px;
+}
+
+.phase-panel {
+  background: linear-gradient(135deg, rgba(30, 35, 50, 0.9) 0%, rgba(20, 25, 40, 0.95) 100%);
+  border-radius: 12px;
+  padding: 25px;
+  border-left: 5px solid;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.phase-panel::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.05) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.phase-panel:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  border-left-width: 6px;
+}
+
+.phase-panel.r-phase {
+  border-left-color: #ff4444;
+  box-shadow: 0 4px 20px rgba(255, 68, 68, 0.2);
+}
+
+.phase-panel.r-phase:hover {
+  box-shadow: 0 12px 40px rgba(255, 68, 68, 0.4);
+}
+
+.phase-panel.y-phase {
+  border-left-color: #ffbb33;
+  box-shadow: 0 4px 20px rgba(255, 187, 51, 0.2);
+}
+
+.phase-panel.y-phase:hover {
+  box-shadow: 0 12px 40px rgba(255, 187, 51, 0.4);
+}
+
+.phase-panel.b-phase {
+  border-left-color: #4444ff;
+  box-shadow: 0 4px 20px rgba(68, 68, 255, 0.2);
+}
+
+.phase-panel.b-phase:hover {
+  box-shadow: 0 12px 40px rgba(68, 68, 255, 0.4);
+}
+
+.phase-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.phase-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.phase-panel.r-phase .phase-title {
+  color: #ff6666;
+}
+
+.phase-panel.y-phase .phase-title {
+  color: #ffcc55;
+}
+
+.phase-panel.b-phase .phase-title {
+  color: #6666ff;
+}
+
+.status-badge {
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.normal {
+  background: rgba(68, 255, 136, 0.2);
+  color: #44ff88;
+  border: 1px solid rgba(68, 255, 136, 0.4);
+}
+
+.status-badge.warning {
+  background: rgba(255, 187, 51, 0.2);
+  color: #ffbb33;
+  border: 1px solid rgba(255, 187, 51, 0.4);
+}
+
+.status-badge.critical {
+  background: rgba(255, 68, 68, 0.2);
+  color: #ff4444;
+  border: 1px solid rgba(255, 68, 68, 0.4);
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Readings Display */
+.readings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.reading-item {
+  background: rgba(20, 25, 35, 0.6);
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.reading-item:hover {
+  background: rgba(30, 40, 60, 0.7);
+  transform: scale(1.02);
+}
+
+.reading-label {
+  font-size: 0.85rem;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.reading-value {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 5px;
+  text-shadow: 0 0 15px currentColor;
+  letter-spacing: -1px;
+}
+
+.phase-panel.r-phase .reading-value {
+  color: #ff6666;
+}
+
+.phase-panel.y-phase .reading-value {
+  color: #ffcc55;
+}
+
+.phase-panel.b-phase .reading-value {
+  color: #6666ff;
+}
+
+.reading-unit {
+  font-size: 0.9rem;
+  color: #888;
+  font-weight: 600;
+}
+
+/* Power Display */
+.power-display {
+  background: linear-gradient(135deg, rgba(100, 149, 237, 0.1) 0%, rgba(70, 100, 200, 0.1) 100%);
+  padding: 12px;
+  border-radius: 8px;
+  text-align: center;
+  margin-bottom: 15px;
+  border: 1px solid rgba(100, 150, 255, 0.3);
+}
+
+.power-label {
+  font-size: 0.85rem;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+.power-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #6495ff;
+}
+
+/* Micro Chart */
+.micro-chart {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid rgba(100, 150, 255, 0.2);
+}
+
+.chart-container {
+  height: 120px;
+  position: relative;
+}
+
+/* Total Power Footer */
+.total-power {
+  background: linear-gradient(135deg, rgba(20, 25, 35, 0.9) 0%, rgba(30, 40, 60, 0.8) 100%);
+  border-radius: 10px;
+  padding: 20px;
+  border: 2px solid rgba(100, 150, 255, 0.3);
+  text-align: center;
+  margin-top: 20px;
+}
+
+.total-power-label {
+  font-size: 1rem;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.total-power-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #6495ff 0%, #44ff88 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+
+/* Worker Mode Restrictions */
+.worker-mode-info {
+  text-align: center;
+  padding: 30px;
+  color: #888;
+  font-style: italic;
+}
+
+/* Responsive Design */
+@media (max-width: 1400px) {
+  .phase-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .phase-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .meter-box {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .meter-box {
+    padding: 15px;
+  }
+
+  .meter-box-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .readings {
+    grid-template-columns: 1fr;
+  }
+
+  .reading-value {
+    font-size: 2rem;
+  }
+
+  .total-power-value {
+    font-size: 2rem;
+  }
+
+  .chart-container {
+    height: 100px;
+  }
+}

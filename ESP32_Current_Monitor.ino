@@ -8,10 +8,23 @@ Adafruit_ADS1115 ads;
 
 // WiFi credentials
 const char* ssid = "Jack's";
-const char* password = "12345678";
+const char* password = "10101010.";
 
 // WebSocket server on port 81
 WebSocketsServer webSocket = WebSocketsServer(81);
+
+// SIM800C GSM Module (connected via Serial2)
+#define GSM_RX 16
+#define GSM_TX 17
+HardwareSerial gsmSerial(2);
+
+// Phone number to send SMS alerts
+const char* alertPhone = "+919876543210";  // Replace with your number
+
+// SMS alert flags (send only once per fault)
+bool smsA0Sent = false;
+bool smsA1Sent = false;
+bool smsA3Sent = false;
 
 const int SAMPLE_COUNT = 200;
 const int SAMPLE_DELAY_US = 500;
@@ -34,6 +47,29 @@ bool cutA0 = false;
 bool cutA1 = false;
 bool cutA3 = false;   // NEW
 
+void sendSMS(const char* message) {
+  Serial.println("Sending SMS...");
+  
+  gsmSerial.println("AT");
+  delay(1000);
+  
+  gsmSerial.println("AT+CMGF=1");  // Set SMS to text mode
+  delay(1000);
+  
+  gsmSerial.print("AT+CMGS=\"");
+  gsmSerial.print(alertPhone);
+  gsmSerial.println("\"");
+  delay(1000);
+  
+  gsmSerial.print(message);
+  delay(1000);
+  
+  gsmSerial.write(26);  // Ctrl+Z to send
+  delay(5000);
+  
+  Serial.println("SMS Sent!");
+}
+
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
   if (type == WStype_DISCONNECTED) {
     Serial.printf("[%u] Disconnected!\n", num);
@@ -46,6 +82,21 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
 void setup() {
   Serial.begin(115200);
   delay(1000);
+
+  // Initialize GSM Module
+  gsmSerial.begin(9600, SERIAL_8N1, GSM_RX, GSM_TX);
+  delay(3000);
+  
+  Serial.println("Initializing GSM Module...");
+  gsmSerial.println("AT");
+  delay(1000);
+  gsmSerial.println("AT+CSQ");  // Check signal quality
+  delay(1000);
+  gsmSerial.println("AT+CCID"); // Check SIM card
+  delay(1000);
+  gsmSerial.println("AT+CREG?"); // Check network registration
+  delay(1000);
+  Serial.println("GSM Ready!");
 
   // Connect to WiFi
   Serial.println("\nConnecting to WiFi...");
@@ -151,8 +202,13 @@ void loop() {
     else Serial.println("STABLE");
   }
 
-  // Relay control
+  // Relay control & SMS Alert
   digitalWrite(RELAY1, cutA0 ? HIGH : LOW);
+  
+  if (cutA0 && !smsA0Sent) {
+    sendSMS("ALERT: R-Phase (Phase-1) FAULT DETECTED! Load cut detected.");
+    smsA0Sent = true;
+  }
 
   // ---------------------- PHASE 2 ----------------------
   Serial.print("Phase-2: ");
@@ -173,6 +229,11 @@ void loop() {
   }
 
   digitalWrite(RELAY2, cutA1 ? HIGH : LOW);
+  
+  if (cutA1 && !smsA1Sent) {
+    sendSMS("ALERT: Y-Phase (Phase-2) FAULT DETECTED! Load cut detected.");
+    smsA1Sent = true;
+  }
 
   // ---------------------- PHASE 3 (NEW) ----------------------
   Serial.print("Phase-3: ");
@@ -192,8 +253,13 @@ void loop() {
     else Serial.println("STABLE");
   }
 
-  // Relay-3 control
+  // Relay-3 control & SMS Alert
   digitalWrite(RELAY3, cutA3 ? HIGH : LOW);
+  
+  if (cutA3 && !smsA3Sent) {
+    sendSMS("ALERT: B-Phase (Phase-3) FAULT DETECTED! Load cut detected.");
+    smsA3Sent = true;
+  }
 
   // Send data via WebSocket
   webSocket.loop();
