@@ -1,15 +1,23 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LogIn, User, Lock, AlertCircle } from 'lucide-react';
+import { LogIn, User, Lock, AlertCircle, ChevronDown, Users } from 'lucide-react';
 import '../styles/Login.css';
 
 const Login = () => {
   const { login } = useAuth();
+  const [userType, setUserType] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const userTypes = [
+    { value: 'assistant_engineer', label: 'Assistant Engineer' },
+    { value: 'junior_engineer', label: 'Junior Engineer' },
+    { value: 'section_officer', label: 'Section Officer' },
+    { value: 'lineman', label: 'Line Man' }
+  ];
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -45,6 +53,30 @@ const Login = () => {
               <span>{error}</span>
             </div>
           )}
+
+          <div className="form-group">
+            <label htmlFor="userType">
+              <Users size={20} />
+              <span>User Type</span>
+            </label>
+            <div className="select-wrapper">
+              <select
+                id="userType"
+                value={userType}
+                onChange={(e) => setUserType(e.target.value)}
+                required
+                className="form-select"
+              >
+                <option value="">Select your user type</option>
+                {userTypes.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={20} className="select-icon" />
+            </div>
+          </div>
 
           <div className="form-group">
             <label htmlFor="username">
@@ -92,24 +124,6 @@ const Login = () => {
             )}
           </button>
         </form>
-
-        <div className="login-footer">
-          <div className="demo-credentials">
-            <p><strong>Demo Credentials:</strong></p>
-            <div className="credentials-grid">
-              <div>
-                <p className="role-badge engineer">Engineer</p>
-                <p>Username: <code>engineer</code></p>
-                <p>Password: <code>engineer123</code></p>
-              </div>
-              <div>
-                <p className="role-badge worker">Worker</p>
-                <p>Username: <code>worker</code></p>
-                <p>Password: <code>worker123</code></p>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

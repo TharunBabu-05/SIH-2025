@@ -39,6 +39,7 @@ const MonitoringDashboard = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [faultType, setFaultType] = useState<string>('');
 
   // WebSocket connection
   useEffect(() => {
@@ -97,6 +98,10 @@ const MonitoringDashboard = () => {
 
     setHistoricalData(prev => [...prev, data].slice(-12)); // Keep last 12 samples
     setLastUpdate(new Date());
+    
+    if (data.fault && data.fault_type) {
+      setFaultType(data.fault_type);
+    }
   };
 
   const fetchRecentData = async () => {
@@ -137,11 +142,8 @@ const MonitoringDashboard = () => {
       {/* Header */}
       <header className="dashboard-header-compact">
         <div className="header-left">
-          <Activity size={32} className="header-icon" />
-          <div>
-            <h1>KSEBL Monitoring</h1>
-            <p>3-Phase Fault Detection System</p>
-          </div>
+          <Activity size={24} className="header-icon" />
+          <h1>KSEBL Monitoring - 3-Phase Fault Detection</h1>
         </div>
         
         <div className="header-right">
@@ -195,9 +197,9 @@ const MonitoringDashboard = () => {
 
       {/* Main Content */}
       <div className="dashboard-main">
-        {!showAnalytics ? (
-          <>
-            {/* Meter Box */}
+        <div className="dashboard-grid">
+          {/* Left - Meter Box (Compact) */}
+          <div className="meter-section">
             <MeterBox
               phaseR={phaseR}
               phaseY={phaseY}
@@ -206,9 +208,104 @@ const MonitoringDashboard = () => {
               lastUpdate={lastUpdate}
               isWorker={!isEngineer}
             />
-          </>
-        ) : (
-          <Analytics />
+          </div>
+
+          {/* Right - Info Panels */}
+          <div className="info-panels">
+            {/* System Status */}
+            <div className="info-card">
+              <h3><Activity size={18} /> System Status</h3>
+              <div className="info-grid">
+                <div className="info-item">
+                  <span className="info-label">Connection</span>
+                  <span className={`info-value ${isConnected ? 'online' : 'offline'}`}>
+                    {isConnected ? 'Online' : 'Offline'}
+                  </span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">Data Points</span>
+                  <span className="info-value">{historicalData.length}/12</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">Last Update</span>
+                  <span className="info-value">
+                    {lastUpdate ? lastUpdate.toLocaleTimeString() : 'N/A'}
+                  </span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">Fault Status</span>
+                  <span className={`info-value ${systemFault ? 'fault' : 'ok'}`}>
+                    {systemFault ? 'FAULT' : 'Normal'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Stats */}
+            {isEngineer && (
+              <div className="info-card">
+                <h3><TrendingUp size={18} /> Quick Stats</h3>
+                <div className="stats-list">
+                  <div className="stat-item">
+                    <span>Total Power</span>
+                    <strong>{(phaseR.power + phaseY.power + phaseB.power).toFixed(2)} W</strong>
+                  </div>
+                  <div className="stat-item">
+                    <span>Avg Voltage</span>
+                    <strong>{((phaseR.voltage + phaseY.voltage + phaseB.voltage) / 3).toFixed(2)} V</strong>
+                  </div>
+                  <div className="stat-item">
+                    <span>Avg Current</span>
+                    <strong>{((phaseR.current + phaseY.current + phaseB.current) / 3).toFixed(2)} A</strong>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Phase Summary */}
+            <div className="info-card">
+              <h3><Database size={18} /> Phase Overview</h3>
+              <div className="phase-overview">
+                <div className="phase-row phase-r-row">
+                  <div className="phase-badge">R</div>
+                  <div className="phase-values">
+                    <span>{phaseR.voltage.toFixed(1)}V</span>
+                    <span>{phaseR.current.toFixed(1)}A</span>
+                  </div>
+                  <div className={`phase-status-mini ${phaseR.status}`}>
+                    {phaseR.status}
+                  </div>
+                </div>
+                <div className="phase-row phase-y-row">
+                  <div className="phase-badge">Y</div>
+                  <div className="phase-values">
+                    <span>{phaseY.voltage.toFixed(1)}V</span>
+                    <span>{phaseY.current.toFixed(1)}A</span>
+                  </div>
+                  <div className={`phase-status-mini ${phaseY.status}`}>
+                    {phaseY.status}
+                  </div>
+                </div>
+                <div className="phase-row phase-b-row">
+                  <div className="phase-badge">B</div>
+                  <div className="phase-values">
+                    <span>{phaseB.voltage.toFixed(1)}V</span>
+                    <span>{phaseB.current.toFixed(1)}A</span>
+                  </div>
+                  <div className={`phase-status-mini ${phaseB.status}`}>
+                    {phaseB.status}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Analytics (Full Width Below) */}
+        {showAnalytics && isEngineer && (
+          <div className="analytics-section">
+            <Analytics />
+          </div>
         )}
       </div>
     </div>

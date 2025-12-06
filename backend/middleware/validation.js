@@ -34,8 +34,8 @@ export const validateSensorData = (req, res, next) => {
  */
 export const validateLogin = (req, res, next) => {
   const schema = Joi.object({
-    username: Joi.string().alphanum().min(3).max(30).required(),
-    password: Joi.string().min(6).required()
+    username: Joi.string().min(3).max(30).required(),
+    password: Joi.string().min(3).required()
   });
 
   const { error, value } = schema.validate(req.body);

@@ -1,5 +1,6 @@
 import { Line } from 'react-chartjs-2';
 import { Clock } from 'lucide-react';
+import { useState } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -53,6 +54,17 @@ interface Props {
 }
 
 const MeterBox = ({ phaseR, phaseY, phaseB, historicalData, lastUpdate, isWorker }: Props) => {
+  const [selectedPhase, setSelectedPhase] = useState<'R' | 'Y' | 'B'>('R');
+  
+  const getCurrentPhaseData = () => {
+    switch (selectedPhase) {
+      case 'R': return { data: phaseR, color: '#ff4444', name: 'R Phase' };
+      case 'Y': return { data: phaseY, color: '#ffbb33', name: 'Y Phase' };
+      case 'B': return { data: phaseB, color: '#4444ff', name: 'B Phase' };
+    }
+  };
+
+  const currentPhase = getCurrentPhaseData();
   
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -105,7 +117,11 @@ const MeterBox = ({ phaseR, phaseY, phaseB, historicalData, lastUpdate, isWorker
     },
     scales: {
       x: { display: false },
-      y: { display: false }
+      y: { 
+        display: true,
+        grid: { color: 'rgba(100, 150, 255, 0.1)' },
+        ticks: { color: '#888', font: { size: 10 } }
+      }
     },
     interaction: {
       mode: 'nearest' as const,
@@ -114,85 +130,117 @@ const MeterBox = ({ phaseR, phaseY, phaseB, historicalData, lastUpdate, isWorker
     }
   };
 
-  const renderPhasePanel = (
-    phaseName: string,
-    phaseData: PhaseData,
-    phaseKey: 'R' | 'Y' | 'B',
-    color: string
-  ) => (
-    <div className={`phase-panel phase-${phaseKey.toLowerCase()}`}>
-      <div className="phase-header">
-        <h3 className="phase-title">{phaseName}</h3>
-        <span className={`status-badge ${phaseData.status}`}>
-          {phaseData.status.toUpperCase()}
-        </span>
-      </div>
-
-      <div className="readings">
-        {/* Voltage */}
-        <div className="reading-item">
-          <span className="reading-label">Voltage</span>
-          <div className="reading-value">
-            {phaseData.voltage.toFixed(2)}
-          </div>
-          <span className="reading-unit">V</span>
-        </div>
-
-        {/* Current */}
-        <div className="reading-item">
-          <span className="reading-label">Current</span>
-          <div className="reading-value">
-            {phaseData.current.toFixed(2)}
-          </div>
-          <span className="reading-unit">A</span>
-        </div>
-      </div>
-
-      {/* Power Display */}
-      {!isWorker && (
-        <div className="power-display">
-          <span className="power-label">Power</span>
-          <span className="power-value">{phaseData.power.toFixed(2)} W</span>
-        </div>
-      )}
-
-      {/* Micro Chart */}
-      {!isWorker && historicalData.length > 0 && (
-        <div className="micro-chart">
-          <div className="chart-container">
-            <Line data={createChartData(phaseKey, 'V')} options={chartOptions} />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
   return (
     <div className="meter-box">
-      <div className="meter-box-header">
-        <h2>Meter Box - 3 Phase Monitoring</h2>
-        {lastUpdate && (
-          <div className="last-update">
-            <Clock size={16} />
-            Last Update: {lastUpdate.toLocaleTimeString()}
+      {/* Phase Selector Tabs */}
+      <div className="phase-tabs">
+        <button 
+          className={`phase-tab phase-tab-r ${selectedPhase === 'R' ? 'active' : ''}`}
+          onClick={() => setSelectedPhase('R')}
+        >
+          R Phase
+        </button>
+        <button 
+          className={`phase-tab phase-tab-y ${selectedPhase === 'Y' ? 'active' : ''}`}
+          onClick={() => setSelectedPhase('Y')}
+        >
+          Y Phase
+        </button>
+        <button 
+          className={`phase-tab phase-tab-b ${selectedPhase === 'B' ? 'active' : ''}`}
+          onClick={() => setSelectedPhase('B')}
+        >
+          B Phase
+        </button>
+      </div>
+
+      {/* Selected Phase Display */}
+      <div className="phase-content">
+        <div className="phase-header-compact">
+          <h3 className="phase-name" style={{ color: currentPhase.color }}>
+            {currentPhase.name}
+          </h3>
+          <span className={`status-badge ${currentPhase.data.status}`}>
+            {currentPhase.data.status.toUpperCase()}
+          </span>
+          {lastUpdate && (
+            <div className="last-update-compact">
+              <Clock size={14} />
+              {lastUpdate.toLocaleTimeString()}
+            </div>
+          )}
+        </div>
+
+        {/* Voltage & Current Cards */}
+        <div className="readings-compact">
+          <div className="reading-card">
+            <div className="reading-label">Voltage</div>
+            <div className="reading-value-large" style={{ color: currentPhase.color }}>
+              {currentPhase.data.voltage.toFixed(2)}
+            </div>
+            <div className="reading-unit">V</div>
+          </div>
+
+          <div className="reading-card">
+            <div className="reading-label">Current</div>
+            <div className="reading-value-large" style={{ color: currentPhase.color }}>
+              {currentPhase.data.current.toFixed(2)}
+            </div>
+            <div className="reading-unit">A</div>
+          </div>
+
+          {!isWorker && (
+            <div className="reading-card">
+              <div className="reading-label">Power</div>
+              <div className="reading-value-large" style={{ color: currentPhase.color }}>
+                {currentPhase.data.power.toFixed(2)}
+              </div>
+              <div className="reading-unit">W</div>
+            </div>
+          )}
+        </div>
+
+        {/* Charts Section */}
+        {!isWorker && historicalData.length > 0 && (
+          <div className="charts-section-compact">
+            <div className="chart-box">
+              <div className="chart-title">Voltage Trend</div>
+              <div className="chart-container-compact">
+                <Line data={createChartData(selectedPhase, 'V')} options={chartOptions} />
+              </div>
+            </div>
+            <div className="chart-box">
+              <div className="chart-title">Current Trend</div>
+              <div className="chart-container-compact">
+                <Line data={createChartData(selectedPhase, 'I')} options={chartOptions} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Total Power Summary */}
+        {!isWorker && (
+          <div className="power-summary">
+            <div className="summary-item">
+              <span className="summary-label">Total System Power</span>
+              <span className="summary-value">
+                {(phaseR.power + phaseY.power + phaseB.power).toFixed(2)} W
+              </span>
+            </div>
+            <div className="phase-powers">
+              <div className="mini-power" style={{ borderColor: '#ff4444' }}>
+                R: {phaseR.power.toFixed(1)}W
+              </div>
+              <div className="mini-power" style={{ borderColor: '#ffbb33' }}>
+                Y: {phaseY.power.toFixed(1)}W
+              </div>
+              <div className="mini-power" style={{ borderColor: '#4444ff' }}>
+                B: {phaseB.power.toFixed(1)}W
+              </div>
+            </div>
           </div>
         )}
       </div>
-
-      <div className="phase-grid">
-        {renderPhasePanel('R Phase', phaseR, 'R', '#ff4444')}
-        {renderPhasePanel('Y Phase', phaseY, 'Y', '#ffbb33')}
-        {renderPhasePanel('B Phase', phaseB, 'B', '#4444ff')}
-      </div>
-
-      {!isWorker && (
-        <div className="total-power">
-          <span className="total-power-label">Total System Power</span>
-          <span className="total-power-value">
-            {(phaseR.power + phaseY.power + phaseB.power).toFixed(2)} W
-          </span>
-        </div>
-      )}
     </div>
   );
 };

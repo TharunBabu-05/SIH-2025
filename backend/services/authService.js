@@ -5,17 +5,31 @@ import bcrypt from 'bcryptjs';
 const users = [
   {
     id: 1,
-    username: 'engineer',
-    password: '$2a$10$.qhMnPo5gXHSlIgOdYVYKuqOD5mnAbM2SpgnR54NTFN59WdmMcdV.', // 'engineer123'
-    role: 'engineer',
-    name: 'Senior Engineer'
+    username: 'assistant_engineer',
+    password: '$2a$10$pSwik4CFFFzPGa9hYEbS/O1zbMYvj23c1yhRJdid3xLwDRPgO7GNq', // 'ae123'
+    role: 'assistant_engineer',
+    name: 'Assistant Engineer'
   },
   {
     id: 2,
-    username: 'worker',
-    password: '$2a$10$EcC/ja7IqVzTVyov5tNisOWb7F3632RkwJnX/QBNs5YyBDkJKwaxe', // 'worker123'
-    role: 'worker',
-    name: 'Field Worker'
+    username: 'junior_engineer',
+    password: '$2a$10$4kSoJ62mO47bqIF9qCllY.b0w/Ou0KwXv4xImxdp0./XQEXZ24akW', // 'je123'
+    role: 'junior_engineer',
+    name: 'Junior Engineer'
+  },
+  {
+    id: 3,
+    username: 'section_officer',
+    password: '$2a$10$KUtCXsTF3vEWKpKFOJb9juYCsWgPqNJ/M2NjgeeECZtUQBxOmooXq', // 'so123'
+    role: 'section_officer',
+    name: 'Section Officer'
+  },
+  {
+    id: 4,
+    username: 'lineman',
+    password: '$2a$10$xzwNyoss6JgCQKtHy8yTUu6Ahe7dFQ6oQ76kSvM8HNd9YpGLGs/si', // 'lm123'
+    role: 'lineman',
+    name: 'Line Man'
   }
 ];
 
