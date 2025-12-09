@@ -78,7 +78,7 @@ const VoltageGauge = ({ value, status }: VoltageGaugeProps) => {
                 className={`gauge-number ${(value > 13 || value < 0.5) ? 'gauge-glow' : ''}`}
                 style={{ color: getColor() }}
               >
-                {animatedValue.toFixed(2)}
+                {animatedValue.toFixed(2).replace('.', ',')}
               </span>
               <span className="gauge-unit">V</span>
             </div>

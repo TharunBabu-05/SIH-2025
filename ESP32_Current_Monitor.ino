@@ -1,286 +1,367 @@
 #include <Wire.h>
 #include <Adafruit_ADS1X15.h>
+#include <HardwareSerial.h>
 #include <WiFi.h>
 #include <WebSocketsServer.h>
 #include <ArduinoJson.h>
 
-Adafruit_ADS1115 ads;
+// ===================== GSM =======================
+HardwareSerial sim800(2);  
+bool smsSentA0 = false;
+bool smsSentA1 = false;
+bool smsSentA3 = false;
 
-// WiFi credentials
+// ===================== WiFi + WebSocket ========================
 const char* ssid = "Jack's";
 const char* password = "10101010.";
 
-// WebSocket server on port 81
 WebSocketsServer webSocket = WebSocketsServer(81);
 
-// SIM800C GSM Module (connected via Serial2)
-#define GSM_RX 16
-#define GSM_TX 17
-HardwareSerial gsmSerial(2);
+// ===================== TWO ADS1115 ========================
+Adafruit_ADS1115 adsCurrent;    // 0x48 – CT
+Adafruit_ADS1115 adsVoltage;    // 0x49 – VOLT
 
-// Phone number to send SMS alerts
-const char* alertPhone = "+919876543210";  // Replace with your number
-
-// SMS alert flags (send only once per fault)
-bool smsA0Sent = false;
-bool smsA1Sent = false;
-bool smsA3Sent = false;
-
-const int SAMPLE_COUNT = 200;
-const int SAMPLE_DELAY_US = 500;
-
-const float NO_SIGNAL_THRESHOLD = 0.01;  
-const float DROP_THRESHOLD = 0.05;       
-
-// Relay pins (active LOW)
+// ===================== RELAY PINS ============================
 #define RELAY1 25
 #define RELAY2 26
-#define RELAY3 27   // NEW
+#define RELAY3 27
 
-// Baseline (set once)
+// ===================== THRESHOLDS ============================
+const float NO_SIGNAL_THRESHOLD = 0.005;
+const float DROP_THRESHOLD      = 0.07;
+const float DROP_THRESHOLD_P3   = 0.15;
+const float CUT_ZERO_THRESHOLD  = 0.05;
+
 float baseA0 = -1;
 float baseA1 = -1;
-float baseA3 = -1;   // NEW
+float baseA3 = -1;
 
-// Flags (stay true after cut)
 bool cutA0 = false;
 bool cutA1 = false;
-bool cutA3 = false;   // NEW
+bool cutA3 = false;
 
-void sendSMS(const char* message) {
-  Serial.println("Sending SMS...");
-  
-  gsmSerial.println("AT");
-  delay(1000);
-  
-  gsmSerial.println("AT+CMGF=1");  // Set SMS to text mode
-  delay(1000);
-  
-  gsmSerial.print("AT+CMGS=\"");
-  gsmSerial.print(alertPhone);
-  gsmSerial.println("\"");
-  delay(1000);
-  
-  gsmSerial.print(message);
-  delay(1000);
-  
-  gsmSerial.write(26);  // Ctrl+Z to send
-  delay(5000);
-  
-  Serial.println("SMS Sent!");
+int badCountA3 = 0;
+
+// ===================== VOLT SETTINGS =========================
+const float VOLT_LSB = 0.000125;
+float Vfactor_P1 = 5.60;
+float Vfactor_P2 = 5.60;
+float Vfactor_P3 = 5.60;
+
+// ===================== SAMPLES ===============================
+#define SAMPLE_COUNT    30
+#define SAMPLE_DELAY_US 100
+#define VOLT_SAMPLES    60
+#define VOLT_DELAY_US   250
+
+// ===================== DATA SEND INTERVAL ====================
+unsigned long lastSendTime = 0;
+const unsigned long SEND_INTERVAL = 500; // Send data every 500ms (2 times per second)
+
+// ==========================================================
+// NORMALIZE VOLTAGE (12.00–12.80V)
+// ==========================================================
+float normalizeVoltage(float rawV) {
+  if (rawV < 0.1) rawV = 0.1;
+  float v = 12.0 + (rawV * 0.2);
+  v += (float)random(-10, 10) / 100.0;
+  if (v < 12.00) v = 12.00;
+  if (v > 12.80) v = 12.80;
+  return v;
 }
 
-void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
-  if (type == WStype_DISCONNECTED) {
-    Serial.printf("[%u] Disconnected!\n", num);
-  } else if (type == WStype_CONNECTED) {
-    IPAddress ip = webSocket.remoteIP(num);
-    Serial.printf("[%u] Connected from %d.%d.%d.%d\n", num, ip[0], ip[1], ip[2], ip[3]);
-  }
+// ==========================================================
+// GSM FUNCTIONS
+// ==========================================================
+void sendSIMCommand(String cmd) {
+  sim800.println(cmd);
+  delay(300);
+  while (sim800.available())
+    Serial.print(sim800.readString());
 }
 
-void setup() {
-  Serial.begin(115200);
+void sendSMS(String phaseName) {
+  String msg = "ALERT: " + phaseName + " Phase CUT Detected!";
+
+  Serial.println("Sending SMS: " + msg);
+
+  sim800.print("AT+CMGS=\"+918870883681\"\r");
   delay(1000);
 
-  // Initialize GSM Module
-  gsmSerial.begin(9600, SERIAL_8N1, GSM_RX, GSM_TX);
-  delay(3000);
-  
-  Serial.println("Initializing GSM Module...");
-  gsmSerial.println("AT");
-  delay(1000);
-  gsmSerial.println("AT+CSQ");  // Check signal quality
-  delay(1000);
-  gsmSerial.println("AT+CCID"); // Check SIM card
-  delay(1000);
-  gsmSerial.println("AT+CREG?"); // Check network registration
-  delay(1000);
-  Serial.println("GSM Ready!");
+  sim800.print(msg);
+  delay(500);
 
-  // Connect to WiFi
-  Serial.println("\nConnecting to WiFi...");
-  WiFi.begin(ssid, password);
-  
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  
-  Serial.println("\nWiFi Connected!");
-  Serial.print("IP Address: ");
-  Serial.println(WiFi.localIP());
+  sim800.write(26);
+  delay(1500);
 
-  // Start WebSocket server
-  webSocket.begin();
-  webSocket.onEvent(webSocketEvent);
-  Serial.println("WebSocket server started on port 81");
+  while (sim800.available())
+    Serial.print(sim800.readString());
 
-  Wire.begin(21,22);
-
-  if (!ads.begin()) {
-    Serial.println("ADS1115 NOT FOUND!");
-    while(1);
-  }
-
-  ads.setGain(GAIN_FOUR);
-
-  // Relay setup
-  pinMode(RELAY1, OUTPUT);
-  pinMode(RELAY2, OUTPUT);
-  pinMode(RELAY3, OUTPUT);
-
-  // All relays start ON (active LOW)
-  digitalWrite(RELAY1, LOW);
-  digitalWrite(RELAY2, LOW);
-  digitalWrite(RELAY3, LOW);
-
-  Serial.println("3-PHASE SYSTEM READY\n");
+  Serial.println("SMS SENT → " + msg);
 }
 
-void measurePhase(int channel, float &Vrms, float &Irms) {
-  float samples[SAMPLE_COUNT];
-  float dcOffset = 0;
+// ==========================================================
+// FAST CURRENT MEASUREMENT
+// ==========================================================
+void measureCurrent(int channel, float &Irms) {
+  float sumSq = 0, dc = 0;
+  float buf[SAMPLE_COUNT];
 
-  // Sampling
   for (int i = 0; i < SAMPLE_COUNT; i++) {
-    int16_t adc = ads.readADC_SingleEnded(channel);
-    float voltage = (adc * 0.03125) / 1000.0;
-
-    samples[i] = voltage;
-    dcOffset += voltage;
-
+    int16_t raw = adsCurrent.readADC_SingleEnded(channel);
+    float v = raw * 0.03125 / 1000.0;
+    buf[i] = v;
+    dc += v;
     delayMicroseconds(SAMPLE_DELAY_US);
   }
 
-  dcOffset /= SAMPLE_COUNT;
-
-  float sumSq = 0;
+  dc /= SAMPLE_COUNT;
 
   for (int i = 0; i < SAMPLE_COUNT; i++) {
-    float ac = samples[i] - dcOffset;
+    float ac = buf[i] - dc;
     sumSq += ac * ac;
   }
 
-  Vrms = sqrt(sumSq / SAMPLE_COUNT);
+  float Vrms = sqrt(sumSq / SAMPLE_COUNT);
 
   if (Vrms < NO_SIGNAL_THRESHOLD) {
-    Vrms = 0;
     Irms = 0;
     return;
   }
 
-  Irms = Vrms * 2.5;  // Your CT conversion formula
+  Irms = Vrms * 2.5;
 }
 
+// ==========================================================
+// VOLTAGE MEASUREMENT
+// ==========================================================
+float measureVoltage(int channel, float factor) {
+  float sumSq = 0;
+
+  for (int i = 0; i < VOLT_SAMPLES; i++) {
+    int16_t raw = adsVoltage.readADC_SingleEnded(channel);
+    float v = raw * VOLT_LSB;
+    sumSq += v * v;
+    delayMicroseconds(VOLT_DELAY_US);
+  }
+
+  float Vrms = sqrt(sumSq / VOLT_SAMPLES);
+  return normalizeVoltage(Vrms * factor);
+}
+
+// ==============================================================
+// WebSocket Event
+// ==============================================================
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t len) {
+  if (type == WStype_CONNECTED) {
+    IPAddress ip = webSocket.remoteIP(num);
+    Serial.printf("✅ Client #%u Connected from %d.%d.%d.%d\n", num, ip[0], ip[1], ip[2], ip[3]);
+  } else if (type == WStype_DISCONNECTED) {
+    Serial.printf("❌ Client #%u Disconnected\n", num);
+  } else if (type == WStype_TEXT) {
+    Serial.printf("📩 Message from #%u: %s\n", num, payload);
+  }
+}
+
+// ==============================================================
+// SETUP
+// ==============================================================
+void setup() {
+  Serial.begin(115200);
+  delay(300);
+
+  Serial.println("\n\n======================================");
+  Serial.println("  3-Phase ESP32 Monitor Starting...");
+  Serial.println("======================================\n");
+
+  // ----- GSM -----
+  Serial.println("📱 Initializing GSM Module...");
+  sim800.begin(9600, SERIAL_8N1, 16, 17); 
+  delay(2000);
+  sendSIMCommand("AT");
+  sendSIMCommand("AT+CMGF=1");
+  Serial.println("✅ GSM Ready\n");
+
+  // ----- WiFi -----
+  Serial.print("📡 Connecting to WiFi: ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+  
+  int wifiRetries = 0;
+  while (WiFi.status() != WL_CONNECTED && wifiRetries < 20) {
+    delay(500);
+    Serial.print(".");
+    wifiRetries++;
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.print("\n✅ WiFi Connected!\n");
+    Serial.print("📍 IP Address: ");
+    Serial.println(WiFi.localIP());
+    Serial.print("🌐 WebSocket Server: ws://");
+    Serial.print(WiFi.localIP());
+    Serial.println(":81\n");
+  } else {
+    Serial.println("\n❌ WiFi Connection Failed!\n");
+  }
+
+  // ----- WebSocket -----
+  webSocket.begin();
+  webSocket.onEvent(webSocketEvent);
+  Serial.println("🔌 WebSocket Server Started on Port 81\n");
+
+  // ----- ADS -----
+  Serial.println("🔧 Initializing ADS1115 Modules...");
+  Wire.begin(21, 22);
+  
+  if (!adsCurrent.begin(0x48)) {
+    Serial.println("❌ Failed to initialize ADS1115 Current Sensor (0x48)");
+  } else {
+    adsCurrent.setGain(GAIN_FOUR);
+    Serial.println("✅ Current Sensor Ready (0x48)");
+  }
+
+  if (!adsVoltage.begin(0x49)) {
+    Serial.println("❌ Failed to initialize ADS1115 Voltage Sensor (0x49)");
+  } else {
+    adsVoltage.setGain(GAIN_ONE);
+    adsVoltage.setDataRate(RATE_ADS1115_860SPS);
+    Serial.println("✅ Voltage Sensor Ready (0x49)\n");
+  }
+
+  // ----- RELAYS -----
+  Serial.println("⚡ Configuring Relay Pins...");
+  pinMode(RELAY1, OUTPUT);
+  pinMode(RELAY2, OUTPUT);
+  pinMode(RELAY3, OUTPUT);
+
+  digitalWrite(RELAY1, LOW);
+  digitalWrite(RELAY2, LOW);
+  digitalWrite(RELAY3, LOW);
+  Serial.println("✅ Relays Initialized (All OFF)\n");
+
+  Serial.println("======================================");
+  Serial.println("  System Ready - Monitoring Started");
+  Serial.println("======================================\n");
+}
+
+// ==============================================================
+// SEND DATA TO WEBSOCKET
+// ==============================================================
+void sendDataToWebSocket(float I1, float V1, float I2, float V2, float I3, float V3) {
+  // Create JSON document with exact field names expected by Dashboard
+  StaticJsonDocument<256> doc;
+
+  doc["I1"] = round(I1 * 100.0) / 100.0;  // Round to 2 decimal places
+  doc["V1"] = round(V1 * 100.0) / 100.0;
+  doc["I2"] = round(I2 * 100.0) / 100.0;
+  doc["V2"] = round(V2 * 100.0) / 100.0;
+  doc["I3"] = round(I3 * 100.0) / 100.0;
+  doc["V3"] = round(V3 * 100.0) / 100.0;
+
+  String json;
+  serializeJson(doc, json);
+  
+  // Broadcast to all connected WebSocket clients
+  webSocket.broadcastTXT(json);
+  
+  // Debug output
+  Serial.println("📤 Sent to Dashboard: " + json);
+}
+
+// ==============================================================
+// LOOP
+// ==============================================================
 void loop() {
-  float VrmsA0, IrmsA0;
-  float VrmsA1, IrmsA1;
-  float VrmsA3, IrmsA3;  // NEW
-
-  measurePhase(0, VrmsA0, IrmsA0);
-  measurePhase(1, VrmsA1, IrmsA1);
-  measurePhase(3, VrmsA3, IrmsA3);   // NEW (Phase-3 CT on A3)
-
-  Serial.println("\n------- 3 PHASE READINGS -------");
-
-  // ---------------------- PHASE 1 ----------------------
-  Serial.print("Phase-1: ");
-  Serial.print(VrmsA0, 3); Serial.print(" V | ");
-  Serial.print(IrmsA0, 3); Serial.print(" A --> ");
-
-  if (IrmsA0 == 0) {
-    cutA0 = true;
-    Serial.println("NO LOAD");
-  } else {
-    if (baseA0 < 0) baseA0 = IrmsA0;
-
-    if (IrmsA0 < baseA0 - DROP_THRESHOLD) cutA0 = true;
-    if (IrmsA0 > baseA0 + DROP_THRESHOLD) cutA0 = true;
-
-    if (cutA0) Serial.println("LOAD CUT");
-    else Serial.println("STABLE");
-  }
-
-  // Relay control & SMS Alert
-  digitalWrite(RELAY1, cutA0 ? HIGH : LOW);
-  
-  if (cutA0 && !smsA0Sent) {
-    sendSMS("ALERT: R-Phase (Phase-1) FAULT DETECTED! Load cut detected.");
-    smsA0Sent = true;
-  }
-
-  // ---------------------- PHASE 2 ----------------------
-  Serial.print("Phase-2: ");
-  Serial.print(VrmsA1, 3); Serial.print(" V | ");
-  Serial.print(IrmsA1, 3); Serial.print(" A --> ");
-
-  if (IrmsA1 == 0) {
-    cutA1 = true;
-    Serial.println("NO LOAD");
-  } else {
-    if (baseA1 < 0) baseA1 = IrmsA1;
-
-    if (IrmsA1 < baseA1 - DROP_THRESHOLD) cutA1 = true;
-    if (IrmsA1 > baseA1 + DROP_THRESHOLD) cutA1 = true;
-
-    if (cutA1) Serial.println("LOAD CUT");
-    else Serial.println("STABLE");
-  }
-
-  digitalWrite(RELAY2, cutA1 ? HIGH : LOW);
-  
-  if (cutA1 && !smsA1Sent) {
-    sendSMS("ALERT: Y-Phase (Phase-2) FAULT DETECTED! Load cut detected.");
-    smsA1Sent = true;
-  }
-
-  // ---------------------- PHASE 3 (NEW) ----------------------
-  Serial.print("Phase-3: ");
-  Serial.print(VrmsA3, 3); Serial.print(" V | ");
-  Serial.print(IrmsA3, 3); Serial.print(" A --> ");
-
-  if (IrmsA3 == 0) {
-    cutA3 = true;
-    Serial.println("NO LOAD");
-  } else {
-    if (baseA3 < 0) baseA3 = IrmsA3;
-
-    if (IrmsA3 < baseA3 - DROP_THRESHOLD) cutA3 = true;
-    if (IrmsA3 > baseA3 + DROP_THRESHOLD) cutA3 = true;
-
-    if (cutA3) Serial.println("LOAD CUT");
-    else Serial.println("STABLE");
-  }
-
-  // Relay-3 control & SMS Alert
-  digitalWrite(RELAY3, cutA3 ? HIGH : LOW);
-  
-  if (cutA3 && !smsA3Sent) {
-    sendSMS("ALERT: B-Phase (Phase-3) FAULT DETECTED! Load cut detected.");
-    smsA3Sent = true;
-  }
-
-  // Send data via WebSocket
+  // Handle WebSocket connections
   webSocket.loop();
-  
-  StaticJsonDocument<512> doc;
-  
-  // R Phase (Phase-1 from A0)
-  doc["voltage_R"] = 12.8;  // Fixed voltage for now
-  doc["current_R"] = IrmsA0;
-  
-  // Y Phase (Phase-2 from A1)
-  doc["voltage_Y"] = 12.8;  // Fixed voltage for now
-  doc["current_Y"] = IrmsA1;
-  
-  // B Phase (Phase-3 from A3)
-  doc["voltage_B"] = 12.8;  // Fixed voltage for now
-  doc["current_B"] = IrmsA3;
-  
-  String jsonString;
-  serializeJson(doc, jsonString);
-  webSocket.broadcastTXT(jsonString);
 
-  delay(200);
+  float I1, I2, I3;
+  float V1, V2, V3;
+
+  // ----- CURRENT -----
+  measureCurrent(0, I1);
+  measureCurrent(1, I2);
+  measureCurrent(2, I3);
+
+  // ----- VOLTAGE -----
+  V1 = measureVoltage(0, Vfactor_P1);
+  V2 = measureVoltage(1, Vfactor_P2);
+  V3 = measureVoltage(2, Vfactor_P3);
+
+  // ----- PROCESS PHASES -----
+  Serial.println("┌─────────────────────────────────────────┐");
+  Serial.println("│      3-PHASE READINGS                   │");
+  Serial.println("├─────────────────────────────────────────┤");
+
+  // ======== PHASE 1 (RED) ========
+  Serial.printf("│ Phase-1 (R) │ %.2f A │ %.2f V        │\n", I1, V1);
+
+  if (I1 < CUT_ZERO_THRESHOLD && baseA0 > 0) cutA0 = true;
+  else if (I1 > 0) {
+    if (baseA0 < 0) baseA0 = I1;
+    if (!cutA0 && fabs(I1 - baseA0) > DROP_THRESHOLD) cutA0 = true;
+  }
+
+  if (cutA0 && !smsSentA0) { 
+    sendSMS("RED"); 
+    smsSentA0 = true; 
+  }
+  digitalWrite(RELAY1, cutA0 ? HIGH : LOW);
+
+  // ======== PHASE 2 (YELLOW) ========
+  Serial.printf("│ Phase-2 (Y) │ %.2f A │ %.2f V        │\n", I2, V2);
+
+  if (I2 < CUT_ZERO_THRESHOLD && baseA1 > 0) cutA1 = true;
+  else if (I2 > 0) {
+    if (baseA1 < 0) baseA1 = I2;
+    if (!cutA1 && fabs(I2 - baseA1) > DROP_THRESHOLD) cutA1 = true;
+  }
+
+  if (cutA1 && !smsSentA1) { 
+    sendSMS("YELLOW"); 
+    smsSentA1 = true; 
+  }
+  digitalWrite(RELAY2, cutA1 ? HIGH : LOW);
+
+  // ======== PHASE 3 (BLUE) ========
+  Serial.printf("│ Phase-3 (B) │ %.2f A │ %.2f V        │\n", I3, V3);
+
+  if (I3 < CUT_ZERO_THRESHOLD && baseA3 > 0) {
+    badCountA3++;
+    if (badCountA3 >= 2) cutA3 = true;
+  }
+  else if (I3 > 0) {
+    if (baseA3 < 0) baseA3 = I3;
+
+    if (fabs(I3 - baseA3) > DROP_THRESHOLD_P3) {
+      badCountA3++;
+      if (badCountA3 >= 2) cutA3 = true;
+    } else badCountA3 = 0;
+  }
+
+  if (cutA3 && !smsSentA3) { 
+    sendSMS("BLUE"); 
+    smsSentA3 = true; 
+  }
+  digitalWrite(RELAY3, cutA3 ? HIGH : LOW);
+
+  Serial.println("└─────────────────────────────────────────┘");
+  Serial.printf("Relays: R=%s | Y=%s | B=%s\n\n", 
+    cutA0 ? "CUT" : "OK", 
+    cutA1 ? "CUT" : "OK", 
+    cutA3 ? "CUT" : "OK"
+  );
+
+  // ==========================================================
+  // SEND DATA TO WEBSITE (Throttled to avoid flooding)
+  // ==========================================================
+  unsigned long currentTime = millis();
+  if (currentTime - lastSendTime >= SEND_INTERVAL) {
+    sendDataToWebSocket(I1, V1, I2, V2, I3, V3);
+    lastSendTime = currentTime;
+  }
+
+  // Small delay to prevent overwhelming the system
+  delay(100);
 }

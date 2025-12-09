@@ -78,7 +78,7 @@ const CurrentGauge = ({ value, status }: CurrentGaugeProps) => {
                 className={`gauge-number ${(value > 1.2 || value < 0.01) ? 'gauge-glow' : ''}`}
                 style={{ color: getColor() }}
               >
-                {animatedValue.toFixed(3)}
+                {animatedValue.toFixed(3).replace('.', ',')}
               </span>
               <span className="gauge-unit">A</span>
             </div>

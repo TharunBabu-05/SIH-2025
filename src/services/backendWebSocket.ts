@@ -33,7 +33,23 @@ class BackendWebSocketService {
         try {
           const message = JSON.parse(event.data);
           
-          if (message.type === 'sensor_data') {
+          // Handle direct ESP32 format (I1, V1, I2, V2, I3, V3)
+          if (message.I1 !== undefined && message.V1 !== undefined) {
+            const sensorData = {
+              timestamp: new Date().toISOString(),
+              R_V: message.V1 || 0,
+              R_I: message.I1 || 0,
+              Y_V: message.V2 || 0,
+              Y_I: message.I2 || 0,
+              B_V: message.V3 || 0,
+              B_I: message.I3 || 0,
+              fault: false,
+              fault_type: null
+            };
+            this.onMessage?.(sensorData);
+          }
+          // Handle backend server format
+          else if (message.type === 'sensor_data') {
             this.onMessage?.(message.data);
           } else if (message.type === 'connected') {
             console.log(message.message);

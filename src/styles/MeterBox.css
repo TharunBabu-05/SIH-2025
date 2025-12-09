@@ -1,8 +1,8 @@
 .meter-box {
   background: rgba(20, 25, 35, 0.95);
   backdrop-filter: blur(10px);
-  border-radius: 12px;
-  padding: 15px;
+  border-radius: 15px;
+  padding: 20px;
   border: 2px solid rgba(100, 150, 255, 0.4);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 60px rgba(100, 150, 255, 0.1);
   height: 100%;
@@ -13,16 +13,16 @@
 /* Phase Tabs */
 .phase-tabs {
   display: flex;
-  gap: 8px;
-  margin-bottom: 15px;
+  gap: 12px;
+  margin-bottom: 18px;
 }
 
 .phase-tab {
   flex: 1;
-  padding: 10px 15px;
+  padding: 14px 20px;
   border: none;
-  border-radius: 8px;
-  font-size: 0.95rem;
+  border-radius: 12px;
+  font-size: 1.1rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -86,8 +86,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
-  padding-bottom: 15px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
   border-bottom: 2px solid rgba(100, 150, 255, 0.3);
   flex-wrap: wrap;
   gap: 10px;
@@ -111,9 +111,141 @@
 /* Readings Compact */
 .readings-compact {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 15px;
-  margin-bottom: 20px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 25px;
+  margin-bottom: 25px;
+}
+
+/* Circular Gauge Container */
+.gauge-container {
+  background: linear-gradient(135deg, rgba(30, 40, 60, 0.8) 0%, rgba(20, 30, 50, 0.9) 100%);
+  padding: 20px;
+  border-radius: 15px;
+  border: 2px solid rgba(100, 150, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+.gauge-container:hover {
+  transform: translateY(-5px);
+  border-color: rgba(100, 150, 255, 0.6);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+
+.gauge-header-mini {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #6495ff;
+}
+
+.gauge-icon {
+  font-size: 1.5rem;
+}
+
+.circular-gauge-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 280px;
+  margin: 0 auto 20px;
+}
+
+.gauge-svg {
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.5));
+}
+
+.gauge-markers {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.marker {
+  position: absolute;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #888;
+  background: rgba(20, 30, 50, 0.9);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(100, 150, 255, 0.3);
+}
+
+.marker-left {
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.marker-top {
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.marker-right {
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.gauge-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 15px;
+  background: rgba(20, 30, 50, 0.6);
+  border-radius: 10px;
+  border: 1px solid rgba(100, 150, 255, 0.2);
+}
+
+.info-label {
+  font-size: 0.75rem;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+
+.info-value {
+  font-size: 1rem;
+  color: #6495ff;
+  font-weight: 700;
+}
+
+.status-pill {
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-pill.normal {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.status-pill.warning {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.status-pill.critical {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.4);
 }
 
 .reading-card {
@@ -156,10 +288,11 @@
 
 /* Charts Section Compact */
 .charts-section-compact {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   margin-bottom: 15px;
+  flex: 1;
 }
 
 .chart-box {
@@ -169,18 +302,28 @@
   border: 1px solid rgba(100, 150, 255, 0.2);
 }
 
+.chart-box-full {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, rgba(30, 40, 60, 0.8) 0%, rgba(20, 30, 50, 0.9) 100%);
+  border: 2px solid rgba(100, 150, 255, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
 .chart-title {
-  font-size: 0.9rem;
+  font-size: 1rem;
   color: #aaa;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-weight: 600;
 }
 
-.chart-container-compact {
-  height: 140px;
+.chart-container-full {
+  flex: 1;
   position: relative;
+  min-height: 300px;
 }
 
 /* Power Summary */

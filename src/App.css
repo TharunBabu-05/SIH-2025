@@ -39,9 +39,12 @@ html, body, #root {
 .App {
   min-height: 100vh;
   height: 100vh;
+  width: 100vw;
   background: var(--bg-color);
   overflow: hidden;
   position: relative;
+  margin: 0;
+  padding: 0;
 }
 
 .App::before {

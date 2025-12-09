@@ -84,8 +84,17 @@ const MeterBox = ({ phaseR, phaseY, phaseB, historicalData, lastUpdate, isWorker
 
   // Chart data for micro-graphs
   const createChartData = (phaseKey: 'R' | 'Y' | 'B', dataKey: 'V' | 'I') => {
-    const labels = historicalData.map((_, idx) => `${idx + 1}`);
-    const data = historicalData.map(d => d[`${phaseKey}_${dataKey}` as keyof SensorData] as number);
+    let labels, data;
+    
+    if (historicalData.length > 0) {
+      labels = historicalData.map((_, idx) => `${idx + 1}`);
+      data = historicalData.map(d => d[`${phaseKey}_${dataKey}` as keyof SensorData] as number);
+    } else {
+      // Use current real-time values
+      const currentValue = dataKey === 'V' ? currentPhase.data.voltage : currentPhase.data.current;
+      labels = ['Now'];
+      data = [currentValue];
+    }
     
     const color = phaseKey === 'R' ? '#ef4444' : phaseKey === 'Y' ? '#eab308' : '#3b82f6';
     
@@ -98,8 +107,8 @@ const MeterBox = ({ phaseR, phaseY, phaseB, historicalData, lastUpdate, isWorker
         borderWidth: 2,
         tension: 0.4,
         fill: true,
-        pointRadius: 0,
-        pointHoverRadius: 4,
+        pointRadius: 3,
+        pointHoverRadius: 6,
       }]
     };
   };
@@ -110,7 +119,7 @@ const MeterBox = ({ phaseR, phaseY, phaseB, historicalData, lastUpdate, isWorker
     plugins: {
       legend: { display: false },
       tooltip: {
-        enabled: !isWorker,
+        enabled: true,
         mode: 'index' as const,
         intersect: false,
       }
@@ -121,6 +130,127 @@ const MeterBox = ({ phaseR, phaseY, phaseB, historicalData, lastUpdate, isWorker
         display: true,
         grid: { color: 'rgba(100, 150, 255, 0.1)' },
         ticks: { color: '#888', font: { size: 10 } }
+      }
+    },
+    interaction: {
+      mode: 'nearest' as const,
+      axis: 'x' as const,
+      intersect: false
+    }
+  };
+
+  // Combined Voltage & Current Chart
+  const createCombinedChart = (phaseKey: 'R' | 'Y' | 'B') => {
+    let labels, voltageData, currentData;
+    
+    if (historicalData.length > 0) {
+      labels = historicalData.map((d, idx) => {
+        const time = new Date(d.timestamp);
+        return time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      });
+      voltageData = historicalData.map(d => d[`${phaseKey}_V` as keyof SensorData] as number);
+      currentData = historicalData.map(d => d[`${phaseKey}_I` as keyof SensorData] as number);
+    } else {
+      // Use current real-time values
+      labels = ['Now'];
+      voltageData = [currentPhase.data.voltage];
+      currentData = [currentPhase.data.current];
+    }
+    
+    const color = phaseKey === 'R' ? '#ef4444' : phaseKey === 'Y' ? '#eab308' : '#3b82f6';
+    
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Voltage (V)',
+          data: voltageData,
+          borderColor: color,
+          backgroundColor: `${color}30`,
+          borderWidth: 2.5,
+          tension: 0.4,
+          fill: true,
+          yAxisID: 'y',
+          pointRadius: 3,
+          pointHoverRadius: 6,
+        },
+        {
+          label: 'Current (A)',
+          data: currentData,
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16, 185, 129, 0.2)',
+          borderWidth: 2.5,
+          tension: 0.4,
+          fill: true,
+          yAxisID: 'y1',
+          pointRadius: 3,
+          pointHoverRadius: 6,
+        }
+      ]
+    };
+  };
+
+  const combinedChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { 
+        display: true,
+        position: 'top' as const,
+        labels: {
+          color: '#fff',
+          font: { size: 11, weight: 'bold' as const },
+          padding: 10,
+          usePointStyle: true,
+        }
+      },
+      tooltip: {
+        enabled: true,
+        mode: 'index' as const,
+        intersect: false,
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        titleColor: '#fff',
+        bodyColor: '#fff',
+        borderColor: '#444',
+        borderWidth: 1,
+      }
+    },
+    scales: {
+      x: { 
+        display: true,
+        grid: { color: 'rgba(100, 150, 255, 0.1)' },
+        ticks: { 
+          color: '#888', 
+          font: { size: 9 },
+          maxRotation: 45,
+          minRotation: 45
+        }
+      },
+      y: {
+        type: 'linear' as const,
+        display: true,
+        position: 'left' as const,
+        title: {
+          display: true,
+          text: 'Voltage (V)',
+          color: '#888',
+          font: { size: 11, weight: 'bold' as const }
+        },
+        grid: { color: 'rgba(100, 150, 255, 0.1)' },
+        ticks: { color: '#888', font: { size: 10 } }
+      },
+      y1: {
+        type: 'linear' as const,
+        display: true,
+        position: 'right' as const,
+        title: {
+          display: true,
+          text: 'Current (A)',
+          color: '#10b981',
+          font: { size: 11, weight: 'bold' as const }
+        },
+        grid: { drawOnChartArea: false },
+        ticks: { color: '#10b981', font: { size: 10 } }
       }
     },
     interaction: {
@@ -171,52 +301,165 @@ const MeterBox = ({ phaseR, phaseY, phaseB, historicalData, lastUpdate, isWorker
           )}
         </div>
 
-        {/* Voltage & Current Cards */}
+        {/* Voltage & Current Gauges */}
         <div className="readings-compact">
-          <div className="reading-card">
-            <div className="reading-label">Voltage</div>
-            <div className="reading-value-large" style={{ color: currentPhase.color }}>
-              {currentPhase.data.voltage.toFixed(2)}
+          {/* Voltage Gauge */}
+          <div className="gauge-container">
+            <div className="gauge-header-mini">
+              <span className="gauge-icon">⚡</span>
+              <span>Voltage</span>
             </div>
-            <div className="reading-unit">V</div>
-          </div>
-
-          <div className="reading-card">
-            <div className="reading-label">Current</div>
-            <div className="reading-value-large" style={{ color: currentPhase.color }}>
-              {currentPhase.data.current.toFixed(2)}
-            </div>
-            <div className="reading-unit">A</div>
-          </div>
-
-          {!isWorker && (
-            <div className="reading-card">
-              <div className="reading-label">Power</div>
-              <div className="reading-value-large" style={{ color: currentPhase.color }}>
-                {currentPhase.data.power.toFixed(2)}
+            <div className="circular-gauge-wrapper">
+              <svg key={`voltage-${selectedPhase}`} className="gauge-svg" viewBox="0 0 200 200">
+                {/* Background Circle */}
+                <circle
+                  cx="100"
+                  cy="100"
+                  r="80"
+                  fill="none"
+                  stroke="#2a3f5f"
+                  strokeWidth="20"
+                />
+                {/* Progress Circle */}
+                <circle
+                  cx="100"
+                  cy="100"
+                  r="80"
+                  fill="none"
+                  stroke={currentPhase.color}
+                  strokeWidth="20"
+                  strokeDasharray={`${(currentPhase.data.voltage / 15) * 502.65} 502.65`}
+                  strokeLinecap="round"
+                  transform="rotate(-90 100 100)"
+                  style={{ transition: 'stroke-dasharray 0.3s ease, stroke 0.3s ease' }}
+                />
+                {/* Center Circle */}
+                <circle cx="100" cy="100" r="60" fill="#1a2332" />
+                
+                {/* Value Text */}
+                <text
+                  x="100"
+                  y="95"
+                  textAnchor="middle"
+                  fontSize="32"
+                  fontWeight="bold"
+                  fill={currentPhase.color}
+                >
+                  {currentPhase.data.voltage.toFixed(2).replace('.', ',')}
+                </text>
+                <text
+                  x="100"
+                  y="115"
+                  textAnchor="middle"
+                  fontSize="16"
+                  fill="#888"
+                >
+                  V
+                </text>
+              </svg>
+              
+              {/* Scale Markers */}
+              <div className="gauge-markers">
+                <span className="marker marker-left">0</span>
+                <span className="marker marker-top">7.5</span>
+                <span className="marker marker-right">15</span>
               </div>
-              <div className="reading-unit">W</div>
             </div>
-          )}
+            
+            {/* Safe Range */}
+            <div className="gauge-info">
+              <span className="info-label">SAFE RANGE</span>
+              <span className="info-value">0-13V</span>
+              <span className={`status-pill ${currentPhase.data.status}`}>
+                {getStatusText(currentPhase.data.status)}
+              </span>
+            </div>
+          </div>
+
+          {/* Current Gauge */}
+          <div className="gauge-container">
+            <div className="gauge-header-mini">
+              <span className="gauge-icon">⚡</span>
+              <span>Current</span>
+            </div>
+            <div className="circular-gauge-wrapper">
+              <svg key={`current-${selectedPhase}`} className="gauge-svg" viewBox="0 0 200 200">
+                {/* Background Circle */}
+                <circle
+                  cx="100"
+                  cy="100"
+                  r="80"
+                  fill="none"
+                  stroke="#2a3f5f"
+                  strokeWidth="20"
+                />
+                {/* Progress Circle */}
+                <circle
+                  cx="100"
+                  cy="100"
+                  r="80"
+                  fill="none"
+                  stroke={currentPhase.color}
+                  strokeWidth="20"
+                  strokeDasharray={`${(currentPhase.data.current / 1.6) * 502.65} 502.65`}
+                  strokeLinecap="round"
+                  transform="rotate(-90 100 100)"
+                  style={{ transition: 'stroke-dasharray 0.3s ease, stroke 0.3s ease' }}
+                />
+                {/* Center Circle */}
+                <circle cx="100" cy="100" r="60" fill="#1a2332" />
+                
+                {/* Value Text */}
+                <text
+                  x="100"
+                  y="95"
+                  textAnchor="middle"
+                  fontSize="32"
+                  fontWeight="bold"
+                  fill={currentPhase.color}
+                >
+                  {currentPhase.data.current.toFixed(3).replace('.', ',')}
+                </text>
+                <text
+                  x="100"
+                  y="115"
+                  textAnchor="middle"
+                  fontSize="16"
+                  fill="#888"
+                >
+                  A
+                </text>
+              </svg>
+              
+              {/* Scale Markers */}
+              <div className="gauge-markers">
+                <span className="marker marker-left">0</span>
+                <span className="marker marker-top">0.8</span>
+                <span className="marker marker-right">1.6</span>
+              </div>
+            </div>
+            
+            {/* Safe Range */}
+            <div className="gauge-info">
+              <span className="info-label">SAFE RANGE</span>
+              <span className="info-value">0.01-1.2A</span>
+              <span className={`status-pill ${currentPhase.data.status}`}>
+                {getStatusText(currentPhase.data.status)}
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Charts Section */}
-        {!isWorker && historicalData.length > 0 && (
-          <div className="charts-section-compact">
-            <div className="chart-box">
-              <div className="chart-title">Voltage Trend</div>
-              <div className="chart-container-compact">
-                <Line data={createChartData(selectedPhase, 'V')} options={chartOptions} />
-              </div>
-            </div>
-            <div className="chart-box">
-              <div className="chart-title">Current Trend</div>
-              <div className="chart-container-compact">
-                <Line data={createChartData(selectedPhase, 'I')} options={chartOptions} />
+        <div className="charts-section-compact">
+            {/* Combined Voltage & Current Chart */}
+            <div className="chart-box chart-box-full">
+              <div className="chart-title">⚡ Voltage vs Current - Time Series Comparison</div>
+              <div className="chart-container-full">
+                <Line data={createCombinedChart(selectedPhase)} options={combinedChartOptions} />
               </div>
             </div>
           </div>
-        )}
 
         {/* Total Power Summary */}
         {!isWorker && (
