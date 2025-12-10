@@ -3,6 +3,8 @@ import ExcelLogger from '../services/excelLogger.js';
 import { authenticateToken, requireEngineer } from '../middleware/auth.js';
 import { validateSensorData } from '../middleware/validation.js';
 import fs from 'fs';
+import admin from 'firebase-admin';
+import { getDatabase } from 'firebase-admin/database';
 
 const router = express.Router();
 const logger = new ExcelLogger();
@@ -14,6 +16,48 @@ const logger = new ExcelLogger();
 router.post('/', validateSensorData, async (req, res) => {
   try {
     const result = await logger.appendData(req.body);
+    
+    // Save to Firebase Realtime Database
+    if (req.app.locals.firebaseDb) {
+      const db = req.app.locals.firebaseDb;
+      const timestamp = Date.now();
+      
+      // Save to live data (current values)
+      const liveDataRef = db.ref('liveData');
+      await liveDataRef.set({
+        R: {
+          voltage: req.body.voltageR || 0,
+          current: req.body.currentR || 0,
+          power: req.body.powerR || 0
+        },
+        Y: {
+          voltage: req.body.voltageY || 0,
+          current: req.body.currentY || 0,
+          power: req.body.powerY || 0
+        },
+        B: {
+          voltage: req.body.voltageB || 0,
+          current: req.body.currentB || 0,
+          power: req.body.powerB || 0
+        },
+        lastUpdate: timestamp
+      });
+      
+      // Save historical reading with timestamp
+      const readingsRef = db.ref('sensorReadings');
+      await readingsRef.push({
+        voltageR: req.body.voltageR || 0,
+        currentR: req.body.currentR || 0,
+        powerR: req.body.powerR || 0,
+        voltageY: req.body.voltageY || 0,
+        currentY: req.body.currentY || 0,
+        powerY: req.body.powerY || 0,
+        voltageB: req.body.voltageB || 0,
+        currentB: req.body.currentB || 0,
+        powerB: req.body.powerB || 0,
+        timestamp: timestamp
+      });
+    }
     
     // Broadcast to WebSocket clients (handled in server.js)
     req.app.locals.broadcastData(req.body);

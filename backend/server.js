@@ -4,6 +4,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import http from 'http';
+import admin from 'firebase-admin';
+import { getDatabase } from 'firebase-admin/database';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -11,6 +13,21 @@ import dataRoutes from './routes/data.js';
 
 // Load environment variables
 dotenv.config();
+
+// Initialize Firebase Admin
+try {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: "gridguard-9891a",
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n')
+    }),
+    databaseURL: "https://gridguard-9891a-default-rtdb.firebaseio.com"
+  });
+  console.log('✅ Firebase Admin initialized');
+} catch (error) {
+  console.error('❌ Firebase Admin initialization error:', error.message);
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -58,6 +75,9 @@ app.use((err, req, res, next) => {
 
 // Create HTTP server
 const server = http.createServer(app);
+
+// Make Firebase Database available to routes
+app.locals.firebaseDb = getDatabase();
 
 // WebSocket Server
 const wss = new WebSocketServer({ port: WS_PORT });
