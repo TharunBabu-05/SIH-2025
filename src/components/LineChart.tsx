@@ -1,80 +1,69 @@
-import { LineChart as RechartsLine, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart as RechartsLine, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import '../styles/Chart.css';
 
-interface SensorData {
-  voltage: number;
-  current: number;
-  timestamp: string;
-  status: 'normal' | 'warning' | 'critical';
-}
-
 interface LineChartProps {
-  data: SensorData[];
-  title: string;
+  data: number[];
+  labels: string[];
+  label: string;
+  color: string;
+  unit: string;
 }
 
-const LineChart = ({ data, title }: LineChartProps) => {
-  const chartData = data.map((item, index) => ({
-    name: index.toString(),
-    time: new Date(item.timestamp).toLocaleTimeString(),
-    voltage: parseFloat(item.voltage.toFixed(2)),
-    current: parseFloat(item.current.toFixed(2))
+const LineChart = ({ data, labels, label, color, unit }: LineChartProps) => {
+  // Transform data for recharts
+  const chartData = data.map((value, index) => ({
+    name: labels[index] || index.toString(),
+    value: value
   }));
 
+  // Determine Y-axis domain based on unit
+  let yDomain: [number, number] | undefined;
+  if (unit === 'V') {
+    yDomain = [0, 12]; // Voltage scale: 0-12V
+  } else if (unit === 'A') {
+    yDomain = [0, 1.8]; // Current scale: 0-1.8A
+  }
+
   return (
-    <div className="chart-card">
-      <div className="chart-header">
-        <h2>{title}</h2>
-      </div>
-      
-      <ResponsiveContainer width="100%" height={400}>
-        <RechartsLine data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-          <XAxis 
-            dataKey="name" 
-            label={{ value: 'Time', position: 'insideBottom', offset: -5 }}
-            tick={{ fontSize: 12 }}
-          />
-          <YAxis 
-            yAxisId="left"
-            label={{ value: 'Voltage (V)', angle: -90, position: 'insideLeft' }}
-            tick={{ fontSize: 12 }}
-          />
-          <YAxis 
-            yAxisId="right" 
-            orientation="right"
-            label={{ value: 'Current (A)', angle: 90, position: 'insideRight' }}
-            tick={{ fontSize: 12 }}
-          />
-          <Tooltip 
-            contentStyle={{ 
-              backgroundColor: '#fff', 
-              border: '1px solid #ccc',
-              borderRadius: '8px'
-            }}
-          />
-          <Legend />
-          <Line 
-            yAxisId="left"
-            type="monotone" 
-            dataKey="voltage" 
-            stroke="#667eea" 
-            strokeWidth={2}
-            dot={{ fill: '#667eea', r: 3 }}
-            name="Voltage (V)"
-          />
-          <Line 
-            yAxisId="right"
-            type="monotone" 
-            dataKey="current" 
-            stroke="#764ba2" 
-            strokeWidth={2}
-            dot={{ fill: '#764ba2', r: 3 }}
-            name="Current (A)"
-          />
-        </RechartsLine>
-      </ResponsiveContainer>
-    </div>
+    <ResponsiveContainer width="100%" height={300}>
+      <RechartsLine data={chartData}>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
+        <XAxis 
+          dataKey="name" 
+          tick={{ fill: '#fff', fontSize: 11 }}
+          stroke="rgba(255, 255, 255, 0.3)"
+        />
+        <YAxis 
+          domain={yDomain}
+          tick={{ fill: '#fff', fontSize: 11 }}
+          stroke="rgba(255, 255, 255, 0.3)"
+          label={{ 
+            value: unit, 
+            angle: -90, 
+            position: 'insideLeft',
+            style: { fill: '#fff', fontSize: 12 }
+          }}
+        />
+        <Tooltip 
+          contentStyle={{ 
+            backgroundColor: 'rgba(0, 0, 0, 0.8)', 
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            borderRadius: '8px',
+            color: '#fff'
+          }}
+          formatter={(value: number) => [`${value.toFixed(3)} ${unit}`, label]}
+        />
+        <Line 
+          type="monotone" 
+          dataKey="value" 
+          stroke={color} 
+          strokeWidth={2}
+          dot={{ fill: color, r: 3 }}
+          activeDot={{ r: 5 }}
+          name={label}
+        />
+      </RechartsLine>
+    </ResponsiveContainer>
   );
 };
 

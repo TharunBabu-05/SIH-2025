@@ -62,13 +62,18 @@ class FirebaseService {
   // Get recent sensor readings
   async getRecentReadings(limitCount: number = 100) {
     try {
+      console.log('Fetching recent readings from Firestore...');
+      
       const q = query(
         collection(db, 'sensorReadings'),
         orderBy('timestamp', 'desc'),
         limit(limitCount)
       );
       
+      console.log('Executing Firestore query...');
       const querySnapshot = await getDocs(q);
+      console.log('Query snapshot received, documents:', querySnapshot.size);
+      
       const readings: any[] = [];
       
       querySnapshot.forEach((doc) => {
@@ -80,10 +85,50 @@ class FirebaseService {
         });
       });
       
+      console.log('Processed readings:', readings.length);
       return readings;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error getting readings:', error);
-      throw error;
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      
+      // If it's an index error, fall back to simpler query
+      if (error.code === 'failed-precondition' || error.message?.includes('index')) {
+        console.warn('⚠️ Firestore index required! Using fallback query without ordering.');
+        console.warn('Create index at: https://console.firebase.google.com/project/gridguard-9891a/firestore/indexes');
+        
+        // Fallback: Get documents without ordering (simpler query that doesn't require index)
+        try {
+          const fallbackQuery = query(
+            collection(db, 'sensorReadings'),
+            limit(limitCount)
+          );
+          
+          const fallbackSnapshot = await getDocs(fallbackQuery);
+          const readings: any[] = [];
+          
+          fallbackSnapshot.forEach((doc) => {
+            const data = doc.data();
+            readings.push({
+              id: doc.id,
+              ...data,
+              timestamp: data.timestamp.toDate()
+            });
+          });
+          
+          // Sort client-side
+          readings.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+          
+          console.log('Fallback query successful, readings:', readings.length);
+          return readings;
+        } catch (fallbackError) {
+          console.error('Fallback query also failed:', fallbackError);
+          return []; // Return empty array instead of throwing
+        }
+      }
+      
+      // For other errors, return empty array
+      return [];
     }
   }
 

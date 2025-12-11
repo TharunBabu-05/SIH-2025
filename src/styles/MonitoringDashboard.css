@@ -32,6 +32,25 @@
   gap: 12px;
 }
 
+.menu-btn {
+  background: rgba(100, 150, 255, 0.2);
+  border: 1px solid rgba(100, 150, 255, 0.4);
+  border-radius: 10px;
+  color: #6495ff;
+  padding: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.menu-btn:hover {
+  background: rgba(100, 150, 255, 0.3);
+  border-color: rgba(100, 150, 255, 0.6);
+  transform: scale(1.05);
+}
+
 .header-left h1 {
   font-size: 1.5rem;
   margin: 0;

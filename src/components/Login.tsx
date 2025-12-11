@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { LogIn, User, Lock, AlertCircle, ChevronDown, Users } from 'lucide-react';
 import '../styles/Login.css';
 
 const Login = () => {
   const { login } = useAuth();
+  const navigate = useNavigate();
   const [userType, setUserType] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -24,10 +26,15 @@ const Login = () => {
     setError('');
     setLoading(true);
 
+    console.log('Login attempt:', { username, password });
+
     try {
       await login(username, password);
-    } catch (err) {
-      setError('Invalid username or password');
+      console.log('Login successful');
+      navigate('/');
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err.message || 'Invalid username or password');
     } finally {
       setLoading(false);
     }
@@ -64,7 +71,6 @@ const Login = () => {
                 id="userType"
                 value={userType}
                 onChange={(e) => setUserType(e.target.value)}
-                required
                 className="form-select"
               >
                 <option value="">Select your user type</option>

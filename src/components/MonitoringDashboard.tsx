@@ -1,17 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Download, TrendingUp, AlertTriangle, Activity, Database, Settings } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { LogOut, Download, TrendingUp, AlertTriangle, Activity, Database, Settings, Menu, X, History, BarChart2, Clock, Zap, AlertOctagon, Home, LineChart } from 'lucide-react';
 import BackendWebSocketService from '../services/backendWebSocket';
 import { apiService } from '../services/apiService';
+import { firebaseService } from '../services/firebaseService';
 import MeterBox from './MeterBox';
 import Analytics from './Analytics';
+import FaultLocationPanel from './FaultLocationPanel';
 import '../styles/MonitoringDashboard.css';
+import '../styles/Sidebar.css';
 
 interface PhaseData {
   voltage: number;
   current: number;
   power: number;
   status: 'normal' | 'warning' | 'critical';
+  baseline?: number;
+  relayCut?: boolean;
+  faultPole?: number;
+  faultDistance?: number;
+  rcTime?: number;
 }
 
 interface SensorData {
@@ -30,6 +39,7 @@ const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3002';
 
 const MonitoringDashboard = () => {
   const { user, logout, isEngineer } = useAuth();
+  const navigate = useNavigate();
   
   const [phaseR, setPhaseR] = useState<PhaseData>({ voltage: 0, current: 0, power: 0, status: 'normal' });
   const [phaseY, setPhaseY] = useState<PhaseData>({ voltage: 0, current: 0, power: 0, status: 'normal' });
@@ -41,34 +51,141 @@ const MonitoringDashboard = () => {
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false);
   const [faultType, setFaultType] = useState<string>('');
   const [totalEnergy, setTotalEnergy] = useState<number>(0);
   const [uptime, setUptime] = useState<number>(0);
+  const [faultHistory, setFaultHistory] = useState<Array<{timestamp: Date, phase: string, type: string}>>([]);
   
   // IP Configuration
   const [deviceIP, setDeviceIP] = useState(() => {
-    return localStorage.getItem('device_ip') || 'localhost:3002';
+    return localStorage.getItem('device_ip') || '10.189.10.133';
   });
   const [tempIP, setTempIP] = useState(deviceIP);
+  const wsRef = useRef<WebSocket | null>(null);
   
   // Fault Alerts
   const [alerts, setAlerts] = useState<Array<{phase: string, type: string, message: string}>>([]);
   const [phaseCutAlerts, setPhaseCutAlerts] = useState<{R: boolean, Y: boolean, B: boolean}>({R: false, Y: false, B: false});
+  const [alertTimestamps, setAlertTimestamps] = useState<{R: number | null, Y: number | null, B: number | null}>({R: null, Y: null, B: null});
 
-  // WebSocket connection
+  // Auto-dismiss alerts after 10 seconds
   useEffect(() => {
-    const wsUrl = `ws://${deviceIP}`;
-    const ws = new BackendWebSocketService(
-      wsUrl,
-      (data: SensorData) => {
-        handleIncomingData(data);
-      },
-      (connected: boolean) => {
-        setIsConnected(connected);
-      }
-    );
+    const checkAlertExpiry = setInterval(() => {
+      const now = Date.now();
+      const updatedAlerts = { ...phaseCutAlerts };
+      const updatedTimestamps = { ...alertTimestamps };
+      let changed = false;
 
-    ws.connect();
+      (['R', 'Y', 'B'] as const).forEach((phase) => {
+        if (alertTimestamps[phase] && now - alertTimestamps[phase]! > 10000) {
+          updatedAlerts[phase] = false;
+          updatedTimestamps[phase] = null;
+          changed = true;
+        }
+      });
+
+      if (changed) {
+        setPhaseCutAlerts(updatedAlerts);
+        setAlertTimestamps(updatedTimestamps);
+      }
+    }, 1000);
+
+    return () => clearInterval(checkAlertExpiry);
+  }, [alertTimestamps, phaseCutAlerts]);
+
+  // WebSocket connection to ESP32
+  useEffect(() => {
+    const connectToESP32 = () => {
+      // Close existing connection
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+
+      const wsUrl = `ws://${deviceIP}:81`; // ESP32 WebSocket port
+      console.log('Connecting to ESP32:', wsUrl);
+      
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('Connected to ESP32');
+        setIsConnected(true);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('ESP32 Data:', data);
+          
+          // Transform ESP32 data to our format
+          const transformedData: SensorData = {
+            timestamp: new Date().toISOString(),
+            R_V: data.voltage_R || 0,
+            Y_V: data.voltage_Y || 0,
+            B_V: data.voltage_B || 0,
+            R_I: data.current_R || 0,
+            Y_I: data.current_Y || 0,
+            B_I: data.current_B || 0,
+            fault: data.fault || false,
+            fault_type: data.fault_type || null
+          };
+          
+          // Update phase data with enhanced information
+          setPhaseR(prev => ({
+            ...prev,
+            baseline: data.baseline_R,
+            relayCut: data.relay_R,
+            faultPole: data.pole_R,
+            faultDistance: data.distance_R,
+            rcTime: data.rcTime_R
+          }));
+          
+          setPhaseY(prev => ({
+            ...prev,
+            baseline: data.baseline_Y,
+            relayCut: data.relay_Y,
+            faultPole: data.pole_Y,
+            faultDistance: data.distance_Y,
+            rcTime: data.rcTime_Y
+          }));
+          
+          setPhaseB(prev => ({
+            ...prev,
+            baseline: data.baseline_B,
+            relayCut: data.relay_B,
+            faultPole: data.pole_B,
+            faultDistance: data.distance_B,
+            rcTime: data.rcTime_B
+          }));
+
+          handleIncomingData(transformedData);
+          
+          // Save to Firebase Realtime Database
+          saveToFirebase(transformedData);
+        } catch (error) {
+          console.error('Error parsing ESP32 data:', error);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        console.error('Failed to connect to:', wsUrl);
+        console.error('Make sure ESP32 is powered on and WiFi is connected');
+        setIsConnected(false);
+      };
+
+      ws.onclose = () => {
+        console.log('Disconnected from ESP32');
+        console.log('Connection closed. Click Settings to reconnect.');
+        setIsConnected(false);
+        
+        // Don't auto-reconnect if manually disconnected or if there's a persistent error
+        // User can reconnect via Settings
+      };
+    };
+
+    connectToESP32();
 
     // Fetch initial historical data
     fetchRecentData();
@@ -76,34 +193,37 @@ const MonitoringDashboard = () => {
     // Uptime counter
     const startTime = Date.now();
     const uptimeInterval = setInterval(() => {
-      setUptime(Math.floor((Date.now() - startTime) / 1000)); // seconds
+      setUptime(Math.floor((Date.now() - startTime) / 1000));
     }, 1000);
 
-    // Check for data timeout (5 seconds without data = disconnected ESP32)
+    // Check for data timeout - only mark offline if no data for extended period
     const dataTimeoutChecker = setInterval(() => {
-      if (lastDataReceived === 0) {
-        // No data ever received - show as offline
-        setIsConnected(false);
-      } else {
-        const timeSinceLastData = Date.now() - lastDataReceived;
-        if (timeSinceLastData > 5000) {
+      const currentTime = Date.now();
+      const lastReceived = lastDataReceived;
+      
+      if (lastReceived > 0) {
+        const timeSinceLastData = currentTime - lastReceived;
+        if (timeSinceLastData > 10000) { // 10 seconds timeout instead of 5
+          console.log('Data timeout - no data received for', timeSinceLastData, 'ms');
           setIsConnected(false);
-        } else {
-          setIsConnected(true);
         }
       }
-    }, 1000);
+      // Don't set offline if lastDataReceived is 0 during initial connection
+    }, 2000); // Check every 2 seconds instead of 1
 
     return () => {
-      ws.disconnect();
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
       clearInterval(uptimeInterval);
       clearInterval(dataTimeoutChecker);
     };
   }, [deviceIP]);
 
   const handleIncomingData = (data: SensorData) => {
-    // Update last data received timestamp
+    // Update last data received timestamp and connection status
     setLastDataReceived(Date.now());
+    setIsConnected(true); // Explicitly set connected when receiving data
     
     const newAlerts: Array<{phase: string, type: string, message: string}> = [];
     
@@ -158,22 +278,86 @@ const MonitoringDashboard = () => {
     // Update alerts
     setAlerts(newAlerts);
     
-    // Update phase cut alerts
-    setPhaseCutAlerts({
+    // Add to fault history
+    newAlerts.forEach(alert => {
+      setFaultHistory(prev => [{
+        timestamp: new Date(),
+        phase: alert.phase,
+        type: alert.type
+      }, ...prev].slice(0, 50)); // Keep last 50 faults
+    });
+    
+    // Update phase cut alerts with timestamps
+    const phaseCutStatus = {
       R: data.R_V < 5 && data.R_I < 0.05,
       Y: data.Y_V < 5 && data.Y_I < 0.05,
       B: data.B_V < 5 && data.B_I < 0.05
-    });
+    };
+    
+    const now = Date.now();
+    const newTimestamps = { ...alertTimestamps };
+    
+    // Set timestamp for new alerts only
+    if (phaseCutStatus.R && !phaseCutAlerts.R) newTimestamps.R = now;
+    if (phaseCutStatus.Y && !phaseCutAlerts.Y) newTimestamps.Y = now;
+    if (phaseCutStatus.B && !phaseCutAlerts.B) newTimestamps.B = now;
+    
+    setPhaseCutAlerts(phaseCutStatus);
+    setAlertTimestamps(newTimestamps);
 
     setHistoricalData(prev => [...prev, data].slice(-12)); // Keep last 12 samples
     setLastUpdate(new Date());
     
     // Calculate energy (power * time in hours)
-    const totalPower = (data.R_V * data.R_I + data.Y_V * data.Y_I + data.B_V * data.B_I); // in W
-    setTotalEnergy(prev => prev + (totalPower / 3600)); // Convert to Wh (assuming 1 second interval)
+    const totalPower = (data.R_V * data.R_I + data.Y_V * data.Y_I + data.B_V * data.B_I);
+    setTotalEnergy(prev => prev + (totalPower / 3600));
     
     if (data.fault && data.fault_type) {
       setFaultType(data.fault_type);
+    }
+  };
+
+  // Save data to Firebase
+  const saveToFirebase = async (data: SensorData) => {
+    try {
+      // Update live data in Firebase Realtime Database
+      await firebaseService.updateLiveData({
+        R: { voltage: data.R_V, current: data.R_I, power: data.R_V * data.R_I },
+        Y: { voltage: data.Y_V, current: data.Y_I, power: data.Y_V * data.Y_I },
+        B: { voltage: data.B_V, current: data.B_I, power: data.B_V * data.B_I }
+      });
+
+      // Save individual phase readings to Firestore for history
+      await Promise.all([
+        firebaseService.saveSensorReading({
+          phase: 'R',
+          voltage: data.R_V,
+          current: data.R_I,
+          power: data.R_V * data.R_I,
+          status: data.R_V < 5 && data.R_I < 0.05 ? 'critical' : 'normal',
+          timestamp: new Date()
+        }),
+        firebaseService.saveSensorReading({
+          phase: 'Y',
+          voltage: data.Y_V,
+          current: data.Y_I,
+          power: data.Y_V * data.Y_I,
+          status: data.Y_V < 5 && data.Y_I < 0.05 ? 'critical' : 'normal',
+          timestamp: new Date()
+        }),
+        firebaseService.saveSensorReading({
+          phase: 'B',
+          voltage: data.B_V,
+          current: data.B_I,
+          power: data.B_V * data.B_I,
+          status: data.B_V < 5 && data.B_I < 0.05 ? 'critical' : 'normal',
+          timestamp: new Date()
+        })
+      ]);
+
+      console.log('Data saved to Firebase');
+    } catch (error) {
+      console.error('Error saving to Firebase:', error);
     }
   };
 
@@ -224,9 +408,204 @@ const MonitoringDashboard = () => {
 
   return (
     <div className="monitoring-dashboard">
+      {/* Sidebar Menu */}
+      <div className={`sidebar-menu ${showSidebar ? 'open' : ''}`}>
+        <div className="sidebar-header">
+          <h2>Navigation</h2>
+          <button className="sidebar-close" onClick={() => setShowSidebar(false)}>
+            <X size={24} />
+          </button>
+        </div>
+        
+        <div className="sidebar-content">
+          {/* Navigation Links */}
+          <div className="sidebar-section">
+            <div className="sidebar-section-header">
+              <Menu size={20} />
+              <h3>Pages</h3>
+            </div>
+            <div className="nav-links">
+              <button 
+                className="nav-link"
+                onClick={() => {
+                  navigate('/');
+                  setShowSidebar(false);
+                }}
+              >
+                <Home size={20} />
+                <span>Dashboard</span>
+              </button>
+              <button 
+                className="nav-link"
+                onClick={() => {
+                  navigate('/graphs');
+                  setShowSidebar(false);
+                }}
+              >
+                <LineChart size={20} />
+                <span>Phase Graphs</span>
+              </button>
+              <button 
+                className="nav-link"
+                onClick={() => {
+                  navigate('/history');
+                  setShowSidebar(false);
+                }}
+              >
+                <History size={20} />
+                <span>History & Download</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Fault History */}
+          <div className="sidebar-section">
+            <div className="sidebar-section-header">
+              <AlertOctagon size={20} />
+              <h3>Recent Faults</h3>
+            </div>
+            <div className="fault-history-list">
+              {faultHistory.length === 0 ? (
+                <p className="no-faults">No faults recorded</p>
+              ) : (
+                faultHistory.slice(0, 10).map((fault, index) => (
+                  <div key={index} className="fault-history-item">
+                    <div className="fault-badge">{fault.phase}</div>
+                    <div className="fault-info">
+                      <span className="fault-type">{fault.type.replace('_', ' ')}</span>
+                      <span className="fault-time">
+                        {fault.timestamp.toLocaleTimeString()}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Fault Statistics */}
+          <div className="sidebar-section">
+            <div className="sidebar-section-header">
+              <BarChart2 size={20} />
+              <h3>Fault Statistics</h3>
+            </div>
+            <div className="stat-cards">
+              <div className="stat-card">
+                <div className="stat-value">{faultHistory.length}</div>
+                <div className="stat-label">Total Faults</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">
+                  {faultHistory.filter(f => f.type === 'PHASE_CUT').length}
+                </div>
+                <div className="stat-label">Phase Cuts</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">
+                  {faultHistory.filter(f => f.type === 'OVERLOAD').length}
+                </div>
+                <div className="stat-label">Overloads</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">
+                  {faultHistory.filter(f => f.type === 'SHORT_CIRCUIT').length}
+                </div>
+                <div className="stat-label">Short Circuits</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Phase-wise Fault Count */}
+          <div className="sidebar-section">
+            <div className="sidebar-section-header">
+              <Zap size={20} />
+              <h3>Phase-wise Faults</h3>
+            </div>
+            <div className="phase-fault-bars">
+              <div className="phase-bar">
+                <div className="phase-bar-label">
+                  <span className="phase-r">R Phase</span>
+                  <span className="phase-count">
+                    {faultHistory.filter(f => f.phase === 'R').length}
+                  </span>
+                </div>
+                <div className="phase-bar-bg">
+                  <div 
+                    className="phase-bar-fill phase-r-fill" 
+                    style={{width: `${Math.min((faultHistory.filter(f => f.phase === 'R').length / Math.max(faultHistory.length, 1)) * 100, 100)}%`}}
+                  ></div>
+                </div>
+              </div>
+              <div className="phase-bar">
+                <div className="phase-bar-label">
+                  <span className="phase-y">Y Phase</span>
+                  <span className="phase-count">
+                    {faultHistory.filter(f => f.phase === 'Y').length}
+                  </span>
+                </div>
+                <div className="phase-bar-bg">
+                  <div 
+                    className="phase-bar-fill phase-y-fill" 
+                    style={{width: `${Math.min((faultHistory.filter(f => f.phase === 'Y').length / Math.max(faultHistory.length, 1)) * 100, 100)}%`}}
+                  ></div>
+                </div>
+              </div>
+              <div className="phase-bar">
+                <div className="phase-bar-label">
+                  <span className="phase-b">B Phase</span>
+                  <span className="phase-count">
+                    {faultHistory.filter(f => f.phase === 'B').length}
+                  </span>
+                </div>
+                <div className="phase-bar-bg">
+                  <div 
+                    className="phase-bar-fill phase-b-fill" 
+                    style={{width: `${Math.min((faultHistory.filter(f => f.phase === 'B').length / Math.max(faultHistory.length, 1)) * 100, 100)}%`}}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Historical Data Summary */}
+          <div className="sidebar-section">
+            <div className="sidebar-section-header">
+              <History size={20} />
+              <h3>Data Summary</h3>
+            </div>
+            <div className="data-summary">
+              <div className="summary-item">
+                <Clock size={16} />
+                <span>Uptime: {Math.floor(uptime / 3600)}h {Math.floor((uptime % 3600) / 60)}m</span>
+              </div>
+              <div className="summary-item">
+                <Database size={16} />
+                <span>Data Points: {historicalData.length}</span>
+              </div>
+              <div className="summary-item">
+                <Zap size={16} />
+                <span>Energy: {totalEnergy.toFixed(2)} Wh</span>
+              </div>
+              <div className="summary-item">
+                <Activity size={16} />
+                <span>Status: {isConnected ? 'Online' : 'Offline'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Sidebar Overlay */}
+      {showSidebar && (
+        <div className="sidebar-overlay" onClick={() => setShowSidebar(false)}></div>
+      )}
+
       {/* Header */}
       <header className="dashboard-header-compact">
         <div className="header-left">
+          <button className="menu-btn" onClick={() => setShowSidebar(true)}>
+            <Menu size={24} />
+          </button>
           <Activity size={24} className="header-icon" />
           <h1>KSEBL Monitoring - 3-Phase Fault Detection</h1>
         </div>
@@ -310,26 +689,6 @@ const MonitoringDashboard = () => {
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Fault Alerts Banner */}
-      {alerts.length > 0 && (
-        <div className="alerts-container">
-          {alerts.map((alert, index) => (
-            <div key={index} className={`alert-banner ${alert.type.toLowerCase()}`}>
-              <AlertTriangle size={20} />
-              <span><strong>{alert.phase} Phase:</strong> {alert.message}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* System Status Banner */}
-      {systemFault && (
-        <div className="alert-banner critical">
-          <AlertTriangle size={24} />
-          <span>SYSTEM FAULT DETECTED - Immediate attention required!</span>
         </div>
       )}
 
@@ -477,6 +836,13 @@ const MonitoringDashboard = () => {
           </div>
         </div>
 
+        {/* Fault Location Panel (Full Width) */}
+        <FaultLocationPanel
+          phaseR={phaseR}
+          phaseY={phaseY}
+          phaseB={phaseB}
+        />
+
         {/* Analytics (Full Width Below) */}
         {showAnalytics && isEngineer && (
           <div className="analytics-section">
@@ -508,28 +874,28 @@ const MonitoringDashboard = () => {
                   className="settings-input"
                   value={tempIP}
                   onChange={(e) => setTempIP(e.target.value)}
-                  placeholder="e.g., 192.168.1.100:3002"
+                  placeholder="e.g., 192.168.1.100"
                 />
                 <div className="settings-examples">
                   <p className="example-title">Examples:</p>
                   <div className="example-buttons">
                     <button 
                       className="example-btn"
-                      onClick={() => setTempIP('localhost:3002')}
+                      onClick={() => setTempIP('192.168.1.100')}
                     >
-                      Localhost
+                      ESP32 Local (WiFi)
                     </button>
                     <button 
                       className="example-btn"
-                      onClick={() => setTempIP('192.168.1.100:3002')}
+                      onClick={() => setTempIP('10.117.120.133')}
                     >
-                      ESP32 (WiFi)
+                      ESP32 Network
                     </button>
                     <button 
                       className="example-btn"
-                      onClick={() => setTempIP('raspberrypi.local:3002')}
+                      onClick={() => setTempIP('192.168.4.1')}
                     >
-                      Raspberry Pi
+                      ESP32 AP Mode
                     </button>
                   </div>
                 </div>

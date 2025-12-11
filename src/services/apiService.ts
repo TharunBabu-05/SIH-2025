@@ -30,23 +30,34 @@ class ApiService {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
+    const url = `${API_BASE_URL}${endpoint}`;
+    console.log('API Request:', { url, method: options.method || 'GET' });
 
-    if (response.status === 401) {
-      this.clearToken();
-      throw new Error('Unauthorized');
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      });
+
+      console.log('API Response status:', response.status);
+
+      if (response.status === 401) {
+        this.clearToken();
+        throw new Error('Unauthorized');
+      }
+
+      const data = await response.json();
+      console.log('API Response data:', data);
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Request failed');
+      }
+
+      return data;
+    } catch (error: any) {
+      console.error('API Request error:', error);
+      throw error;
     }
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Request failed');
-    }
-
-    return data;
   }
 
   // Auth endpoints

@@ -230,6 +230,8 @@ const MeterBox = ({ phaseR, phaseY, phaseB, historicalData, lastUpdate, isWorker
         type: 'linear' as const,
         display: true,
         position: 'left' as const,
+        min: 0,
+        max: 12.7,
         title: {
           display: true,
           text: 'Voltage (V)',
@@ -243,6 +245,8 @@ const MeterBox = ({ phaseR, phaseY, phaseB, historicalData, lastUpdate, isWorker
         type: 'linear' as const,
         display: true,
         position: 'right' as const,
+        min: 0,
+        max: 1.8,
         title: {
           display: true,
           text: 'Current (A)',
