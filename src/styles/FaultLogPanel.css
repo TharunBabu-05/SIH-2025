@@ -4,81 +4,113 @@
   border-radius: 20px;
   padding: 24px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  margin-top: 24px;
+  margin-top: 0;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  height: 100%;
+  min-height: 600px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.fault-log-header {
+.fault-log-section,
+.fault-status-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 15px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.fault-log-header,
+.fault-status-header {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   color: #ffffff;
+  flex-shrink: 0;
 }
 
-.fault-log-header svg {
+.fault-log-header svg,
+.fault-status-header svg {
   color: #ffd93d;
 }
 
-.fault-log-header h2 {
-  font-size: 1.4rem;
+.fault-log-header h2,
+.fault-status-header h2 {
+  font-size: 1.2rem;
   font-weight: 600;
   margin: 0;
   flex: 1;
 }
 
-.log-count {
+.log-count,
+.status-count {
   background: rgba(255, 217, 61, 0.2);
   color: #ffd93d;
   padding: 4px 12px;
   border-radius: 12px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 600;
 }
 
-.fault-log-container {
+.fault-log-container,
+.fault-status-container {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 400px;
+  flex: 1;
   overflow-y: auto;
   padding-right: 8px;
+  min-height: 0;
 }
 
-.fault-log-container::-webkit-scrollbar {
+.fault-log-container::-webkit-scrollbar,
+.fault-status-container::-webkit-scrollbar {
   width: 6px;
 }
 
-.fault-log-container::-webkit-scrollbar-track {
+.fault-log-container::-webkit-scrollbar-track,
+.fault-status-container::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 3px;
 }
 
-.fault-log-container::-webkit-scrollbar-thumb {
+.fault-log-container::-webkit-scrollbar-thumb,
+.fault-status-container::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
   border-radius: 3px;
 }
 
-.fault-log-container::-webkit-scrollbar-thumb:hover {
+.fault-log-container::-webkit-scrollbar-thumb:hover,
+.fault-status-container::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
 
-.no-logs {
+.no-logs,
+.no-status {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 60px 20px;
+  padding: 40px 20px;
   color: rgba(255, 255, 255, 0.4);
-  gap: 16px;
+  gap: 12px;
+  height: 100%;
 }
 
-.no-logs svg {
+.no-logs svg,
+.no-status svg {
   opacity: 0.3;
 }
 
-.no-logs p {
-  font-size: 1rem;
+.no-logs p,
+.no-status p {
+  font-size: 0.95rem;
   margin: 0;
 }
 
@@ -178,6 +210,219 @@
 .log-distance {
   background: rgba(255, 107, 107, 0.2);
   color: #ff6b6b;
+}
+
+/* Fault Status Section Styles */
+.fault-status-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 3px solid var(--phase-color);
+  border-radius: 12px;
+  padding: 12px;
+  transition: all 0.3s ease;
+  animation: slideInRight 0.4s ease;
+}
+
+.fault-status-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.fault-status-item.resolved {
+  opacity: 0.6;
+  background: rgba(76, 175, 80, 0.1);
+  border-left-color: #4caf50;
+}
+
+.fault-checkbox {
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  accent-color: #4caf50;
+  flex-shrink: 0;
+}
+
+.fault-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+  cursor: pointer;
+}
+
+.status-phase-badge {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #ffffff;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.status-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.status-message {
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.status-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.8rem;
+}
+
+.status-distance {
+  background: rgba(255, 107, 107, 0.2);
+  color: #ff6b6b;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.status-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.resolved-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.resolved-badge svg {
+  color: #4caf50;
+}
+
+/* Power Analysis Compact Section */
+.power-analysis-compact {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 15px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
+}
+
+.power-header-compact {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  color: #6495ff;
+}
+
+.power-header-compact h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+  color: #ffffff;
+}
+
+.power-metrics-compact {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.power-metric-compact {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease;
+}
+
+.power-metric-compact:hover {
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-2px);
+}
+
+.metric-icon-compact {
+  color: #6495ff;
+  flex-shrink: 0;
+}
+
+.metric-details-compact {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metric-label-compact {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+}
+
+.metric-value-compact {
+  font-size: 1.1rem;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.metric-value-compact.online {
+  color: #44ff88;
+}
+
+.metric-value-compact.offline {
+  color: #ff4444;
+}
+
+.status-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status-indicator.connected {
+  background: #44ff88;
+  box-shadow: 0 0 10px rgba(68, 255, 136, 0.5);
+}
+
+.status-indicator.disconnected {
+  background: #ff4444;
+  box-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 /* Responsive Design */

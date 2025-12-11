@@ -81,6 +81,18 @@ const MonitoringDashboard = () => {
   // Fault Logs (max 10 messages)
   const [faultLogs, setFaultLogs] = useState<FaultLog[]>([]);
   const [logIdCounter, setLogIdCounter] = useState(0);
+  
+  // Track if any fault exists
+  const [hasFault, setHasFault] = useState(false);
+
+  // Check if any phase has a fault
+  useEffect(() => {
+    const anyFault = phaseR.status === 'warning' || phaseR.status === 'critical' ||
+                     phaseY.status === 'warning' || phaseY.status === 'critical' ||
+                     phaseB.status === 'warning' || phaseB.status === 'critical' ||
+                     phaseR.relayCut || phaseY.relayCut || phaseB.relayCut;
+    setHasFault(anyFault);
+  }, [phaseR, phaseY, phaseB]);
 
   // Auto-dismiss alerts after 10 seconds
   useEffect(() => {
@@ -440,7 +452,7 @@ const MonitoringDashboard = () => {
   const systemFault = phaseR.status === 'critical' || phaseY.status === 'critical' || phaseB.status === 'critical';
 
   return (
-    <div className="monitoring-dashboard">
+    <div className={`monitoring-dashboard ${hasFault ? 'dashboard-fault-active' : ''}`}>
       {/* Sidebar Menu */}
       <div className={`sidebar-menu ${showSidebar ? 'open' : ''}`}>
         <div className="sidebar-header">
@@ -650,7 +662,7 @@ const MonitoringDashboard = () => {
             <Menu size={24} />
           </button>
           <Activity size={24} className="header-icon" />
-          <h1>KSEBL Monitoring - 3-Phase Fault Detection</h1>
+          <h1>Grid Guard - 3-Phase Fault Detection</h1>
         </div>
         
         <div className="header-right">
@@ -750,137 +762,19 @@ const MonitoringDashboard = () => {
             />
           </div>
 
-          {/* Right - Info Panels */}
+          {/* Right - Fault Log Panel */}
           <div className="info-panels">
-            {/* System Status */}
-            <div className="info-card">
-              <h3><Activity size={18} /> System Status</h3>
-              <div className="info-grid">
-                <div className="info-item">
-                  <span className="info-label">Connection</span>
-                  <span className={`info-value ${isConnected ? 'online' : 'offline'}`}>
-                    {isConnected ? 'Online' : 'Offline'}
-                  </span>
-                </div>
-                <div className="info-item">
-                  <span className="info-label">Data Points</span>
-                  <span className="info-value">{historicalData.length}/12</span>
-                </div>
-                <div className="info-item">
-                  <span className="info-label">Last Update</span>
-                  <span className="info-value">
-                    {lastUpdate ? lastUpdate.toLocaleTimeString() : 'N/A'}
-                  </span>
-                </div>
-                <div className="info-item">
-                  <span className="info-label">Fault Status</span>
-                  <span className={`info-value ${systemFault ? 'fault' : 'ok'}`}>
-                    {systemFault ? 'FAULT' : 'Normal'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Stats */}
-            {isEngineer && (
-              <div className="info-card">
-                <h3><TrendingUp size={18} /> Quick Stats</h3>
-                <div className="stats-list">
-                  <div className="stat-item">
-                    <span>Total Power</span>
-                    <strong>{(phaseR.power + phaseY.power + phaseB.power).toFixed(2)} W</strong>
-                  </div>
-                  <div className="stat-item">
-                    <span>Avg Voltage</span>
-                    <strong>{((phaseR.voltage + phaseY.voltage + phaseB.voltage) / 3).toFixed(2)} V</strong>
-                  </div>
-                  <div className="stat-item">
-                    <span>Avg Current</span>
-                    <strong>{((phaseR.current + phaseY.current + phaseB.current) / 3).toFixed(2)} A</strong>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Power Analysis */}
-            <div className="info-card">
-              <h3><TrendingUp size={18} /> Power Analysis</h3>
-              <div className="power-mini-grid">
-                <div className="power-mini-card">
-                  <div className="power-mini-icon">⚡</div>
-                  <div className="power-mini-label">Real-time Power</div>
-                  <div className="power-mini-value">{(phaseR.power + phaseY.power + phaseB.power).toFixed(2)} W</div>
-                </div>
-                <div className="power-mini-card">
-                  <div className="power-mini-icon">🔋</div>
-                  <div className="power-mini-label">Total Energy</div>
-                  <div className="power-mini-value">{totalEnergy.toFixed(3)} Wh</div>
-                </div>
-                <div className="power-mini-card">
-                  <div className="power-mini-icon">₹</div>
-                  <div className="power-mini-label">Estimated Cost</div>
-                  <div className="power-mini-value">₹{(totalEnergy * 7.5 / 1000).toFixed(2)}</div>
-                </div>
-                <div className="power-mini-card">
-                  <div className="power-mini-icon">📊</div>
-                  <div className="power-mini-label">Load Factor</div>
-                  <div className="power-mini-value">{((phaseR.power + phaseY.power + phaseB.power) / 15000 * 100).toFixed(1)}%</div>
-                </div>
-              </div>
-              
-              {/* Detailed Metrics */}
-              <div className="detailed-metrics-mini">
-                <h4>Detailed Metrics</h4>
-                <div className="metrics-mini-grid">
-                  <div className="metric-mini-item">
-                    <span className="metric-mini-label">Power Factor</span>
-                    <span className="metric-mini-value">1.000</span>
-                  </div>
-                  <div className="metric-mini-item">
-                    <span className="metric-mini-label">Apparent Power</span>
-                    <span className="metric-mini-value">{(phaseR.power + phaseY.power + phaseB.power).toFixed(2)} VA</span>
-                  </div>
-                  <div className="metric-mini-item">
-                    <span className="metric-mini-label">Active Power</span>
-                    <span className="metric-mini-value">{(phaseR.power + phaseY.power + phaseB.power).toFixed(2)} W</span>
-                  </div>
-                  <div className="metric-mini-item">
-                    <span className="metric-mini-label">Energy Rate</span>
-                    <span className="metric-mini-value">₹7.50/kWh</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Live System Monitor - Compact */}
-              <div className="live-monitor-compact">
-                <h4>⚡ System Status</h4>
-                <div className="monitor-compact-grid">
-                  <div className="compact-item">
-                    <span className="compact-icon">📡</span>
-                    <span className={`compact-value ${isConnected ? 'online' : 'offline'}`}>
-                      {isConnected ? 'Live' : 'Offline'}
-                    </span>
-                  </div>
-                  <div className="compact-item">
-                    <span className="compact-icon">⏱️</span>
-                    <span className="compact-value">{Math.floor(uptime / 60)}m {uptime % 60}s</span>
-                  </div>
-                  <div className="compact-item">
-                    <span className="compact-icon">💾</span>
-                    <span className="compact-value">{historicalData.length}/12</span>
-                  </div>
-                  <div className="compact-item">
-                    <span className="compact-icon">🔋</span>
-                    <span className="compact-value">{(phaseR.power + phaseY.power + phaseB.power).toFixed(1)}W</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <FaultLogPanel 
+              logs={faultLogs} 
+              powerData={{
+                totalPower: phaseR.power + phaseY.power + phaseB.power,
+                totalEnergy: totalEnergy,
+                isConnected: isConnected,
+                uptime: uptime
+              }}
+            />
           </div>
         </div>
-
-        {/* Fault Log Panel (Full Width) */}
-        <FaultLogPanel logs={faultLogs} />
 
         {/* Analytics (Full Width Below) */}
         {showAnalytics && isEngineer && (

@@ -101,7 +101,7 @@ wss.on('connection', (ws, req) => {
   // Send welcome message
   ws.send(JSON.stringify({
     type: 'connected',
-    message: 'Connected to KSEBL monitoring server',
+    message: 'Connected to Grid Guard monitoring server',
     timestamp: new Date().toISOString()
   }));
 });

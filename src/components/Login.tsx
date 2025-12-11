@@ -49,7 +49,7 @@ const Login = () => {
           <div className="login-logo">
             <LogIn size={48} />
           </div>
-          <h1>KSEBL Monitoring System</h1>
+          <h1>Grid Guard System</h1>
           <p>3-Phase Fault Detection Dashboard</p>
         </div>
 

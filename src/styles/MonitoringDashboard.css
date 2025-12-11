@@ -9,6 +9,40 @@
   flex-direction: column;
   margin: 0;
   padding: 0;
+  position: relative;
+  transition: background 0.5s ease;
+}
+
+.monitoring-dashboard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: transparent;
+  pointer-events: none;
+  z-index: 0;
+  transition: background 0.5s ease, opacity 0.5s ease;
+  opacity: 0;
+}
+
+.monitoring-dashboard.dashboard-fault-active::before {
+  background: 
+    radial-gradient(circle at 30% 20%, rgba(255, 70, 70, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 70% 80%, rgba(255, 50, 50, 0.15) 0%, transparent 50%),
+    linear-gradient(to bottom, rgba(255, 40, 40, 0.08), rgba(200, 25, 25, 0.08));
+  opacity: 1;
+  animation: faultPulse 3s ease-in-out infinite;
+}
+
+@keyframes faultPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.75;
+  }
 }
 
 .dashboard-header,
@@ -349,6 +383,8 @@
   max-width: 1800px;
   margin: 0 auto;
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 .dashboard-main::-webkit-scrollbar {
@@ -1754,3 +1790,223 @@
   box-shadow: 0 6px 20px rgba(100, 149, 237, 0.5);
 }
 
+/* Power Analysis Section */
+.power-analysis-section {
+  width: 100%;
+  margin-top: 24px;
+}
+
+.power-analysis-card {
+  background: linear-gradient(135deg, #1a1d29 0%, #2a2d3a 100%);
+  border-radius: 20px;
+  padding: 28px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.power-analysis-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  color: #6495ff;
+}
+
+.power-analysis-header svg {
+  color: #6495ff;
+}
+
+.power-analysis-header h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+  color: #ffffff;
+}
+
+.power-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.power-metric-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 15px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.3s ease;
+}
+
+.power-metric-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.metric-icon {
+  font-size: 2.5rem;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(100, 149, 237, 0.2);
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.metric-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metric-label {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+}
+
+.metric-value {
+  font-size: 1.5rem;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.detailed-metrics {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 15px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.detailed-metrics h3 {
+  font-size: 1.1rem;
+  color: #6495ff;
+  margin: 0 0 16px 0;
+  font-weight: 600;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.metric-name {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+}
+
+.metric-val {
+  font-size: 1.2rem;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.system-monitor {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 15px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.system-monitor h3 {
+  font-size: 1.1rem;
+  color: #6495ff;
+  margin: 0 0 16px 0;
+  font-weight: 600;
+}
+
+.monitor-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.monitor-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.monitor-icon {
+  font-size: 1.8rem;
+  width: 45px;
+  height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(100, 149, 237, 0.15);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.monitor-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.monitor-label {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+}
+
+.monitor-value {
+  font-size: 1.1rem;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.monitor-value.online {
+  color: #44ff88;
+}
+
+.monitor-value.offline {
+  color: #ff4444;
+}
+
+/* Responsive Design for Power Analysis */
+@media (max-width: 1200px) {
+  .power-grid,
+  .metrics-grid,
+  .monitor-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .power-grid,
+  .metrics-grid,
+  .monitor-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .power-analysis-card {
+    padding: 20px;
+  }
+}
