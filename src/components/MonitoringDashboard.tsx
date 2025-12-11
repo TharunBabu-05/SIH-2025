@@ -7,7 +7,7 @@ import { apiService } from '../services/apiService';
 import { firebaseService } from '../services/firebaseService';
 import MeterBox from './MeterBox';
 import Analytics from './Analytics';
-import FaultLocationPanel from './FaultLocationPanel';
+import FaultLogPanel from './FaultLogPanel';
 import '../styles/MonitoringDashboard.css';
 import '../styles/Sidebar.css';
 
@@ -33,6 +33,15 @@ interface SensorData {
   B_I: number;
   fault: boolean;
   fault_type: string | null;
+}
+
+interface FaultLog {
+  id: number;
+  timestamp: Date;
+  phase: string;
+  faultType: string;
+  poleNumber: number;
+  distance: number;
 }
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3002';
@@ -68,6 +77,10 @@ const MonitoringDashboard = () => {
   const [alerts, setAlerts] = useState<Array<{phase: string, type: string, message: string}>>([]);
   const [phaseCutAlerts, setPhaseCutAlerts] = useState<{R: boolean, Y: boolean, B: boolean}>({R: false, Y: false, B: false});
   const [alertTimestamps, setAlertTimestamps] = useState<{R: number | null, Y: number | null, B: number | null}>({R: null, Y: null, B: null});
+  
+  // Fault Logs (max 10 messages)
+  const [faultLogs, setFaultLogs] = useState<FaultLog[]>([]);
+  const [logIdCounter, setLogIdCounter] = useState(0);
 
   // Auto-dismiss alerts after 10 seconds
   useEffect(() => {
@@ -117,6 +130,26 @@ const MonitoringDashboard = () => {
         try {
           const data = JSON.parse(event.data);
           console.log('ESP32 Data:', data);
+          
+          // Check if this is a fault log message
+          if (data.type === 'fault_log') {
+            const newLog: FaultLog = {
+              id: logIdCounter,
+              timestamp: new Date(),
+              phase: data.phase,
+              faultType: data.fault_type,
+              poleNumber: data.pole_number,
+              distance: data.distance
+            };
+            
+            setFaultLogs(prevLogs => {
+              const updatedLogs = [newLog, ...prevLogs].slice(0, 10); // Keep max 10 logs
+              return updatedLogs;
+            });
+            
+            setLogIdCounter(prev => prev + 1);
+            return;
+          }
           
           // Transform ESP32 data to our format
           const transformedData: SensorData = {
@@ -454,6 +487,16 @@ const MonitoringDashboard = () => {
               >
                 <History size={20} />
                 <span>History & Download</span>
+              </button>
+              <button 
+                className="nav-link"
+                onClick={() => {
+                  navigate('/3d-view');
+                  setShowSidebar(false);
+                }}
+              >
+                <BarChart2 size={20} />
+                <span>Real-Time View 3D</span>
               </button>
             </div>
           </div>
@@ -836,12 +879,8 @@ const MonitoringDashboard = () => {
           </div>
         </div>
 
-        {/* Fault Location Panel (Full Width) */}
-        <FaultLocationPanel
-          phaseR={phaseR}
-          phaseY={phaseY}
-          phaseB={phaseB}
-        />
+        {/* Fault Log Panel (Full Width) */}
+        <FaultLogPanel logs={faultLogs} />
 
         {/* Analytics (Full Width Below) */}
         {showAnalytics && isEngineer && (

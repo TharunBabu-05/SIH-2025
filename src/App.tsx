@@ -5,6 +5,7 @@ import Login from './components/Login';
 import MonitoringDashboard from './components/MonitoringDashboard';
 import GraphsPage from './components/GraphsPage';
 import HistoryPage from './components/HistoryPage';
+import RealTimeView3D from './components/RealTimeView3D';
 import './App.css';
 
 function AppRoutes() {
@@ -65,6 +66,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <HistoryPage />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/3d-view" 
+          element={
+            <ProtectedRoute>
+              <RealTimeView3D />
             </ProtectedRoute>
           } 
         />

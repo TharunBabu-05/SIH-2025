@@ -95,7 +95,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
 
 // ------------------- Send data to WebSocket clients -------------------
 void sendDataToClients(float Vrms1, float Irms1, float Vrms2, float Irms2, float Vrms3, float Irms3) {
-  StaticJsonDocument<2048> doc; // Increased from 1024 to 2048
+  StaticJsonDocument<2048> doc;
   
   // Phase R (Phase 1)
   doc["voltage_R"] = Vrms1;
@@ -143,6 +143,24 @@ void sendDataToClients(float Vrms1, float Irms1, float Vrms2, float Irms2, float
   String jsonString;
   serializeJson(doc, jsonString);
   webSocket.broadcastTXT(jsonString);
+}
+
+// ------------------- Send Fault Log Message -------------------
+void sendFaultLog(const char* phase, const char* faultType, int poleNumber, float distance) {
+  StaticJsonDocument<512> doc;
+  doc["type"] = "fault_log";
+  doc["phase"] = phase;
+  doc["fault_type"] = faultType;
+  doc["pole_number"] = poleNumber;
+  doc["distance"] = distance;
+  doc["timestamp"] = millis();
+  
+  String jsonString;
+  serializeJson(doc, jsonString);
+  webSocket.broadcastTXT(jsonString);
+  
+  Serial.print("FAULT LOG: ");
+  Serial.println(jsonString);
 }
 
 // ------------------- Utility: measure current from ADS -------------------
@@ -311,6 +329,7 @@ void loop() {
       P1.status = "CUT";
       digitalWrite(RELAY1, HIGH);
       performRCForPhase("Phase-1", P1_OUT, P1_ADC, P1);
+      sendFaultLog("R", "PHASE_CUT", P1.lastPole, P1.lastDist);
     } else {
       if (P1.baseline < 0.0f) {
         P1.baseline = Irms1;
@@ -327,6 +346,7 @@ void loop() {
             P1.status = "CUT";
             digitalWrite(RELAY1, HIGH);
             performRCForPhase("Phase-1", P1_OUT, P1_ADC, P1);
+            sendFaultLog("R", "LOAD_DROP", P1.lastPole, P1.lastDist);
           }
         } else {
           P1.badCount = 0;
@@ -344,6 +364,7 @@ void loop() {
       P2.status = "CUT";
       digitalWrite(RELAY2, HIGH);
       performRCForPhase("Phase-2", P2_OUT, P2_ADC, P2);
+      sendFaultLog("Y", "PHASE_CUT", P2.lastPole, P2.lastDist);
     } else {
       if (P2.baseline < 0.0f) {
         P2.baseline = Irms2;
@@ -360,6 +381,7 @@ void loop() {
             P2.status = "CUT";
             digitalWrite(RELAY2, HIGH);
             performRCForPhase("Phase-2", P2_OUT, P2_ADC, P2);
+            sendFaultLog("Y", "LOAD_DROP", P2.lastPole, P2.lastDist);
           }
         } else {
           P2.badCount = 0;
@@ -377,6 +399,7 @@ void loop() {
       P3.status = "CUT";
       digitalWrite(RELAY3, HIGH);
       performRCForPhase("Phase-3", P3_OUT, P3_ADC, P3);
+      sendFaultLog("B", "PHASE_CUT", P3.lastPole, P3.lastDist);
     } else {
       if (P3.baseline < 0.0f) {
         P3.baseline = Irms3;
@@ -393,6 +416,7 @@ void loop() {
             P3.status = "CUT";
             digitalWrite(RELAY3, HIGH);
             performRCForPhase("Phase-3", P3_OUT, P3_ADC, P3);
+            sendFaultLog("B", "LOAD_DROP", P3.lastPole, P3.lastDist);
           }
         } else {
           P3.badCount = 0;
