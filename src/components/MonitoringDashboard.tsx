@@ -68,7 +68,7 @@ const MonitoringDashboard = () => {
   
   // IP Configuration
   const [deviceIP, setDeviceIP] = useState(() => {
-    return localStorage.getItem('device_ip') || '10.189.10.133';
+    return localStorage.getItem('device_ip') || '192.168.4.1'; // Default to ESP32 AP IP
   });
   const [tempIP, setTempIP] = useState(deviceIP);
   const wsRef = useRef<WebSocket | null>(null);
@@ -121,6 +121,9 @@ const MonitoringDashboard = () => {
 
   // WebSocket connection to ESP32
   useEffect(() => {
+    let reconnectTimer: NodeJS.Timeout | null = null;
+    let isManualClose = false;
+
     const connectToESP32 = () => {
       // Close existing connection
       if (wsRef.current) {
@@ -128,23 +131,37 @@ const MonitoringDashboard = () => {
       }
 
       const wsUrl = `ws://${deviceIP}:81`; // ESP32 WebSocket port
-      console.log('Connecting to ESP32:', wsUrl);
+      console.log('🔌 Connecting to ESP32:', wsUrl);
       
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
+      // Connection timeout - if not connected in 5 seconds, retry
+      const connectionTimeout = setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          console.log('⏱️ Connection timeout - retrying...');
+          ws.close();
+        }
+      }, 5000);
+
       ws.onopen = () => {
-        console.log('Connected to ESP32');
+        clearTimeout(connectionTimeout);
+        console.log('✅ Connected to ESP32');
         setIsConnected(true);
+        // Clear any pending reconnect attempts
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
       };
 
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('ESP32 Data:', data);
           
           // Check if this is a fault log message
           if (data.type === 'fault_log') {
+            console.log('🔴 FAULT LOG RECEIVED:', data);
             const newLog: FaultLog = {
               id: logIdCounter,
               timestamp: new Date(),
@@ -154,13 +171,21 @@ const MonitoringDashboard = () => {
               distance: data.distance
             };
             
+            console.log('📝 Adding to fault logs:', newLog);
+            
             setFaultLogs(prevLogs => {
               const updatedLogs = [newLog, ...prevLogs].slice(0, 10); // Keep max 10 logs
+              console.log('✅ Updated fault logs:', updatedLogs);
               return updatedLogs;
             });
             
             setLogIdCounter(prev => prev + 1);
             return;
+          }
+          
+          // Only log sensor data occasionally to avoid spam
+          if (data.type === 'sensor_data') {
+            console.log('ESP32 Data:', data);
           }
           
           // Transform ESP32 data to our format
@@ -214,19 +239,28 @@ const MonitoringDashboard = () => {
       };
 
       ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        console.error('Failed to connect to:', wsUrl);
-        console.error('Make sure ESP32 is powered on and WiFi is connected');
+        clearTimeout(connectionTimeout);
+        console.error('❌ WebSocket error - ESP32 not reachable');
+        console.error('Make sure:');
+        console.error('1. ESP32 is powered ON');
+        console.error('2. Connected to ESP32-HUB WiFi');
+        console.error('3. ESP32 code is uploaded and running');
         setIsConnected(false);
       };
 
       ws.onclose = () => {
-        console.log('Disconnected from ESP32');
-        console.log('Connection closed. Click Settings to reconnect.');
+        clearTimeout(connectionTimeout);
+        console.log('🔌 Disconnected from ESP32');
         setIsConnected(false);
         
-        // Don't auto-reconnect if manually disconnected or if there's a persistent error
-        // User can reconnect via Settings
+        // Auto-reconnect unless manually closed
+        if (!isManualClose && reconnectTimer === null) {
+          console.log('🔄 Reconnecting in 5 seconds...');
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            connectToESP32();
+          }, 5000); // Retry every 5 seconds
+        }
       };
     };
 
@@ -241,22 +275,25 @@ const MonitoringDashboard = () => {
       setUptime(Math.floor((Date.now() - startTime) / 1000));
     }, 1000);
 
-    // Check for data timeout - only mark offline if no data for extended period
+    // Reduced data timeout - mark offline only after 15 seconds of no data
     const dataTimeoutChecker = setInterval(() => {
       const currentTime = Date.now();
       const lastReceived = lastDataReceived;
       
       if (lastReceived > 0) {
         const timeSinceLastData = currentTime - lastReceived;
-        if (timeSinceLastData > 10000) { // 10 seconds timeout instead of 5
-          console.log('Data timeout - no data received for', timeSinceLastData, 'ms');
+        if (timeSinceLastData > 15000) { // 15 seconds timeout
+          console.log('⚠️ Data timeout - no data received for', timeSinceLastData, 'ms');
           setIsConnected(false);
         }
       }
-      // Don't set offline if lastDataReceived is 0 during initial connection
-    }, 2000); // Check every 2 seconds instead of 1
+    }, 3000); // Check every 3 seconds
 
     return () => {
+      isManualClose = true; // Prevent reconnection on cleanup
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
       if (wsRef.current) {
         wsRef.current.close();
       }
@@ -362,9 +399,11 @@ const MonitoringDashboard = () => {
     }
   };
 
-  // Save data to Firebase
+  // Save data to Firebase (with batching to reduce writes)
   const saveToFirebase = async (data: SensorData) => {
     try {
+      const timestamp = new Date();
+      
       // Update live data in Firebase Realtime Database
       await firebaseService.updateLiveData({
         R: { voltage: data.R_V, current: data.R_I, power: data.R_V * data.R_I },
@@ -372,37 +411,48 @@ const MonitoringDashboard = () => {
         B: { voltage: data.B_V, current: data.B_I, power: data.B_V * data.B_I }
       });
 
-      // Save individual phase readings to Firestore for history
-      await Promise.all([
-        firebaseService.saveSensorReading({
-          phase: 'R',
-          voltage: data.R_V,
-          current: data.R_I,
-          power: data.R_V * data.R_I,
-          status: data.R_V < 5 && data.R_I < 0.05 ? 'critical' : 'normal',
-          timestamp: new Date()
-        }),
-        firebaseService.saveSensorReading({
-          phase: 'Y',
-          voltage: data.Y_V,
-          current: data.Y_I,
-          power: data.Y_V * data.Y_I,
-          status: data.Y_V < 5 && data.Y_I < 0.05 ? 'critical' : 'normal',
-          timestamp: new Date()
-        }),
-        firebaseService.saveSensorReading({
-          phase: 'B',
-          voltage: data.B_V,
-          current: data.B_I,
-          power: data.B_V * data.B_I,
-          status: data.B_V < 5 && data.B_I < 0.05 ? 'critical' : 'normal',
-          timestamp: new Date()
-        })
-      ]);
+      // Determine status based on voltage and current
+      const getStatus = (voltage: number, current: number): 'normal' | 'warning' | 'critical' => {
+        if (voltage < 0.5 || current < 0.01) return 'critical';
+        if (voltage < 11 || voltage > 13.5) return 'warning';
+        return 'normal';
+      };
 
-      console.log('Data saved to Firebase');
+      // Save individual phase readings to Firestore for history (every 5 seconds to reduce writes)
+      const shouldSaveToHistory = Date.now() % 5000 < 500; // Approximately every 5 seconds
+      
+      if (shouldSaveToHistory) {
+        await Promise.all([
+          firebaseService.saveSensorReading({
+            phase: 'R',
+            voltage: data.R_V,
+            current: data.R_I,
+            power: data.R_V * data.R_I,
+            status: getStatus(data.R_V, data.R_I),
+            timestamp: timestamp
+          }),
+          firebaseService.saveSensorReading({
+            phase: 'Y',
+            voltage: data.Y_V,
+            current: data.Y_I,
+            power: data.Y_V * data.Y_I,
+            status: getStatus(data.Y_V, data.Y_I),
+            timestamp: timestamp
+          }),
+          firebaseService.saveSensorReading({
+            phase: 'B',
+            voltage: data.B_V,
+            current: data.B_I,
+            power: data.B_V * data.B_I,
+            status: getStatus(data.B_V, data.B_I),
+            timestamp: timestamp
+          })
+        ]);
+        
+        console.log('✅ Data saved to Firebase Firestore at', timestamp.toLocaleTimeString());
+      }
     } catch (error) {
-      console.error('Error saving to Firebase:', error);
+      console.error('❌ Error saving to Firebase:', error);
     }
   };
 

@@ -19,7 +19,7 @@ const LineChart = ({ data, labels, label, color, unit }: LineChartProps) => {
   // Determine Y-axis domain based on unit
   let yDomain: [number, number] | undefined;
   if (unit === 'V') {
-    yDomain = [0, 12]; // Voltage scale: 0-12V
+    yDomain = [12.0, 13.0]; // Voltage scale: 12.0-13.0V (wider range than gauge for better visibility)
   } else if (unit === 'A') {
     yDomain = [0, 1.8]; // Current scale: 0-1.8A
   }

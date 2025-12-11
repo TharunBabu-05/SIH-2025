@@ -20,14 +20,16 @@ const VoltageGauge = ({ value, status }: VoltageGaugeProps) => {
     return () => clearTimeout(timer);
   }, [value]);
 
-  // Calculate percentage (0-15V range)
-  const percentage = Math.min((animatedValue / 15) * 100, 100);
+  // Calculate percentage (12.2-12.7V range)
+  const minVolt = 12.2;
+  const maxVolt = 12.7;
+  const percentage = Math.min(Math.max(((animatedValue - minVolt) / (maxVolt - minVolt)) * 100, 0), 100);
   const angle = (percentage / 100) * 270 - 135; // -135 to 135 degrees
   
   const getColor = () => {
-    if (value > 14.5) return '#ff4444';
-    if (value > 13) return '#ffaa00';
-    if (value < 0.5) return '#ff4444';
+    if (value > 12.65) return '#ffaa00';
+    if (value < 12.25) return '#ffaa00';
+    if (value === 0) return '#ff4444';
     return '#00dd00';
   };
 
@@ -98,9 +100,9 @@ const VoltageGauge = ({ value, status }: VoltageGaugeProps) => {
         
         {/* Scale Markers */}
         <div className="gauge-scale">
-          <span className="scale-mark start">0</span>
-          <span className="scale-mark mid">7.5</span>
-          <span className="scale-mark end">15</span>
+          <span className="scale-mark start">12.2</span>
+          <span className="scale-mark mid">12.45</span>
+          <span className="scale-mark end">12.7</span>
         </div>
       </div>
       
@@ -108,7 +110,7 @@ const VoltageGauge = ({ value, status }: VoltageGaugeProps) => {
         <div className="gauge-range-display">
           <div className="range-item">
             <span className="range-label">Safe Range</span>
-            <span className="range-value">0-13V</span>
+            <span className="range-value">12.2-12.7V</span>
           </div>
           <div className="gauge-status-badge" style={{ 
             background: getColor(),
